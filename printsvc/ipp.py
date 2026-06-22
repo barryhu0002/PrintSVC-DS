@@ -5,6 +5,7 @@ RFC 2910 (Encoding and Transport), RFC 2911 (Model and Semantics).
 import struct
 import io
 import logging
+import time as _time
 from urllib.parse import quote
 
 logger = logging.getLogger("PrintSVC.IPP")
@@ -334,9 +335,11 @@ def parse_ipp_request(data):
 
 def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
                             accepting_jobs=True, formats=None, supported=None,
-                            host_ip=None):
+                            host_ip=None, printer_uuid=None, printer_up_time=None):
     """Build the standard printer attribute list for Get-Printer-Attributes response.
     host_ip: actual IP address for printer-uri-supported (if None, uses localhost).
+    printer_uuid: UUID string matching mDNS TXT record (required by Mopria).
+    printer_up_time: seconds since printer started (required by Mopria).
     """
     if formats is None:
         formats = [
@@ -383,6 +386,8 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("printer-state", TAG_ENUM, printer_state),  # 3=idle
         ("printer-state-reasons", TAG_KEYWORD, state_reason),
         ("printer-is-accepting-jobs", TAG_BOOLEAN, accepting_jobs),
+        ("printer-uuid", TAG_URI, printer_uuid or "urn:uuid:00000000-0000-0000-0000-000000000000"),
+        ("printer-uuid", TAG_URI, printer_uuid or "urn:uuid:00000000-0000-0000-0000-000000000000"),
         ("queued-job-count", TAG_INTEGER, 0),
         ("color-supported", TAG_BOOLEAN, False),  # monochrome printer
         ("operations-supported", TAG_ENUM, OP_PRINT_JOB),
@@ -398,7 +403,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("printer-make-and-model", TAG_TEXT_WO_LANG, "Toshiba E-Studio 240s"),
         ("printer-location", TAG_TEXT_WO_LANG, ""),
         ("printer-info", TAG_TEXT_WO_LANG, "PrintSVC Network Print Service"),
-        ("printer-up-time", TAG_INTEGER, 0),
+        ("printer-up-time", TAG_INTEGER, printer_up_time if printer_up_time is not None else 0),
         ("compression-supported", TAG_KEYWORD, "none"),
         ("job-creation-attributes-supported", TAG_KEYWORD, "document-format"),
         ("job-creation-attributes-supported", TAG_KEYWORD, "job-name"),
@@ -428,6 +433,9 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         attrs.append(("print-quality-supported", TAG_ENUM, qual))
     for res in supported.get("resolution", ["600x600dpi"]):
         attrs.append(("printer-resolution-supported", TAG_KEYWORD, res))
+
+    # Mopria requires copies-supported even if we only support 1
+    attrs.append(("copies-supported", TAG_RANGEOFINTEGER, (1, 99)))
 
     return attrs
 

@@ -199,6 +199,10 @@ class IPPHandler(BaseHTTPRequestHandler):
 
         local_ip = get_local_ip()
 
+        # Build the same UUID used by mDNS discovery
+        compact_ip = local_ip.replace(".", "").zfill(12)[:12]
+        printer_uuid = f"ffffffff-ffff-ffff-ffff-{compact_ip}"
+
         # Build response attributes
         op_attrs = [
             ("attributes-charset", ipp_proto.TAG_CHARSET, "utf-8"),
@@ -210,6 +214,7 @@ class IPPHandler(BaseHTTPRequestHandler):
             printer_state=3,
             accepting_jobs=True,
             host_ip=local_ip,
+            printer_uuid=printer_uuid,
         )
 
         response = ipp_proto.encode_ipp_response(

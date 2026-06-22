@@ -435,6 +435,9 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     attrs.append(("print-scaling-supported", TAG_KEYWORD, "auto"))
     attrs.append(("print-scaling-default", TAG_KEYWORD, "auto"))
     attrs.append(("media-default", TAG_KEYWORD, "iso_a4_210x297mm"))
+    # media-col-supported: declare which members are valid in media-col collections
+    attrs.append(("media-col-supported", TAG_KEYWORD, "media-size"))
+    attrs.append(("media-col-supported", TAG_KEYWORD, "media-size-name"))
     # media-col-default: collection with media-size and media-size-name (A4)
     attrs.append(("media-col-default", TAG_BEGIN_COLLECTION, [
         ("media-size", TAG_BEGIN_COLLECTION, [

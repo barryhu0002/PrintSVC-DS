@@ -1,0 +1,10 @@
+*.pyc
+__pycache__/
+*.log
+dist/
+build/
+*.spec
+*.whl
+pypi_raw.html
+.DS_Store
+*.egg-info/

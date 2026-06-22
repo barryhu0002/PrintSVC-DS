@@ -1,0 +1,9 @@
+{
+    "printer_name": "",
+    "ipp_port": 631,
+    "listen_address": "0.0.0.0",
+    "service_name": "PrintSVC",
+    "log_file": "printsvc.log",
+    "log_level": "INFO",
+    "mDNS_enabled": true
+}

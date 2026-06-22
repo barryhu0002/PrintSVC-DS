@@ -1,0 +1,13 @@
+# PrintSVC dependencies
+# Core
+pywin32>=300
+Pillow>=8.0.0
+
+# mDNS discovery
+zeroconf>=0.30.0
+
+# PDF support
+PyMuPDF>=1.18.0
+
+# PyInstaller for packaging (build time only)
+pyinstaller>=4.0

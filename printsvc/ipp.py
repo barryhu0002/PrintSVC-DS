@@ -424,9 +424,9 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     attrs.append(("print-scaling-default", TAG_KEYWORD, "auto"))
     attrs.append(("media-default", TAG_KEYWORD, "iso_a4_210x297mm"))
     attrs.append(("media-col-default", TAG_KEYWORD, ""))
-    # No-value required attributes
-    attrs.append(("media-col-ready", TAG_NO_VALUE, b""))
-    attrs.append(("media-ready", TAG_NO_VALUE, b""))
+    # No-value required attributes — Mopria uses these as boolean 'present or not' checks
+    attrs.append(("media-col-ready", TAG_KEYWORD, ""))
+    attrs.append(("media-ready", TAG_KEYWORD, ""))
     attrs.append(("printer-device-id", TAG_TEXT_WO_LANG, "MFG:TOSHIBA;MDL:e-STUDIO240s;CMD:GDI;"))
     attrs.append(("printer-dns-sd-name", TAG_NAME_WO_LANG, f"PrintSVC-{printer_name}".replace(" ", "-")))
     attrs.append(("printer-output-tray", TAG_KEYWORD, "top"))

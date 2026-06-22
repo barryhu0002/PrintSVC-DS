@@ -144,6 +144,9 @@ class IPPHandler(BaseHTTPRequestHandler):
                         req.operation_id, self._op_name(req.operation_id),
                         req.request_id, self.client_address[0])
 
+            # Dump raw request bytes for debugging
+            logger.info("IPP request hex[%d]: %s", len(body), body.hex())
+
             # Dispatch based on operation
             if req.operation_id == ipp_proto.OP_GET_PRINTER_ATTRS:
                 response = self._ipp_get_printer_attrs(req)
@@ -160,6 +163,9 @@ class IPPHandler(BaseHTTPRequestHandler):
             else:
                 logger.warning("Unsupported IPP operation: 0x%04X", req.operation_id)
                 response = self._ipp_error(req, ipp_proto.SERVER_ERROR_OPERATION_NOT_SUPPORTED)
+
+            # Dump raw response bytes for debugging
+            logger.info("IPP response hex[%d]: %s", len(response), response.hex())
 
             # Send IPP response over HTTP
             self.send_response(200)

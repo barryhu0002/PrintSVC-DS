@@ -144,6 +144,18 @@ def encode_attribute(name, value_tag, value):
     elif value_tag == TAG_RANGEOFINTEGER:
         buf.write(struct.pack("!H", 8))
         buf.write(struct.pack("!ii", int(value[0]), int(value[1])))
+    elif value_tag == TAG_BEGIN_COLLECTION:
+        # Collection: value is a list of (name, tag, val) member tuples
+        # First encode all members to calculate total value-length
+        members_buf = io.BytesIO()
+        for member_name, member_tag, member_val in value:
+            members_buf.write(encode_attribute(member_name, member_tag, member_val))
+        member_data = members_buf.getvalue()
+        # Write value-length (total bytes of all member attributes)
+        buf.write(struct.pack("!H", len(member_data)))
+        buf.write(member_data)
+        # End collection marker — single byte (0x1B), no trailing fields
+        buf.write(struct.pack("!B", TAG_END_COLLECTION))
     elif isinstance(value, str):
         # Text-based types: keyword, uri, charset, naturalLanguage, name, mimeMediaType, text
         value_bytes = value.encode("utf-8")
@@ -423,10 +435,34 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     attrs.append(("print-scaling-supported", TAG_KEYWORD, "auto"))
     attrs.append(("print-scaling-default", TAG_KEYWORD, "auto"))
     attrs.append(("media-default", TAG_KEYWORD, "iso_a4_210x297mm"))
-    attrs.append(("media-col-default", TAG_KEYWORD, ""))
-    # No-value required attributes — Mopria uses these as boolean 'present or not' checks
-    attrs.append(("media-col-ready", TAG_KEYWORD, ""))
-    attrs.append(("media-ready", TAG_KEYWORD, ""))
+    # media-col-default: collection with media-size and media-size-name (A4)
+    attrs.append(("media-col-default", TAG_BEGIN_COLLECTION, [
+        ("media-size", TAG_BEGIN_COLLECTION, [
+            ("x-dimension", TAG_INTEGER, 21000),
+            ("y-dimension", TAG_INTEGER, 29700),
+        ]),
+        ("media-size-name", TAG_KEYWORD, "iso_a4_210x297mm"),
+    ]))
+    # media-col-ready: collection entries for each supported media size
+    _media_col_entries = [
+        ("iso_a4_210x297mm", 21000, 29700),
+        ("iso_a3_297x420mm", 29700, 42000),
+        ("na_letter_8.5x11in", 21590, 27940),
+        ("na_legal_8.5x14in", 21590, 35560),
+        ("jis_b5_182x257mm", 18200, 25700),
+        ("jis_b4_257x364mm", 25700, 36400),
+    ]
+    for size_name, x_dim, y_dim in _media_col_entries:
+        attrs.append(("media-col-ready", TAG_BEGIN_COLLECTION, [
+            ("media-size", TAG_BEGIN_COLLECTION, [
+                ("x-dimension", TAG_INTEGER, x_dim),
+                ("y-dimension", TAG_INTEGER, y_dim),
+            ]),
+            ("media-size-name", TAG_KEYWORD, size_name),
+        ]))
+    # media-ready: keywords for each supported media
+    for size_name, _, _ in _media_col_entries:
+        attrs.append(("media-ready", TAG_KEYWORD, size_name))
     attrs.append(("printer-device-id", TAG_TEXT_WO_LANG, "MFG:TOSHIBA;MDL:e-STUDIO240s;CMD:GDI;"))
     attrs.append(("printer-dns-sd-name", TAG_NAME_WO_LANG, f"PrintSVC-{printer_name}".replace(" ", "-")))
     attrs.append(("printer-output-tray", TAG_KEYWORD, "top"))

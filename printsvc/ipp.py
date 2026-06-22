@@ -151,8 +151,8 @@ def encode_attribute(name, value_tag, value):
         for member_name, member_tag, member_val in value:
             members_buf.write(encode_attribute(member_name, member_tag, member_val))
         member_data = members_buf.getvalue()
-        # Write value-length (total bytes of all member attributes)
-        buf.write(struct.pack("!H", len(member_data)))
+        # Write value-length = members + 1 byte for end-collection (RFC 3380 §4.2)
+        buf.write(struct.pack("!H", len(member_data) + 1))
         buf.write(member_data)
         # End collection marker — single byte (0x1B), no trailing fields
         buf.write(struct.pack("!B", TAG_END_COLLECTION))

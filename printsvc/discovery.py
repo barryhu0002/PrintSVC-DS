@@ -48,6 +48,9 @@ class MDNSService:
             valid_host = self.hostname.replace(" ", "-")
             qualified_host = f"{valid_host}.local."
 
+            # DNS TXT 值上限 255 字节，控制在单条以内（Office 格式通过 IPP 查询获取）
+            pdl_compact = "application/pdf,image/png,image/jpeg,image/tiff"
+
             props = {
                 "rp": f"ipp/print/{self.printer_name}",
                 "ty": self.service_name,
@@ -59,17 +62,16 @@ class MDNSService:
                 "priority": "50",
                 "txtvers": "1",
                 "qtotal": "1",
-                "pdl": "application/pdf,image/png,image/jpeg,image/tiff,"
-                       "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
-                       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
-                       "application/vnd.openxmlformats-officedocument.presentationml.presentation,"
-                       "application/msword,application/vnd.ms-excel,application/vnd.ms-powerpoint",
-                "UUID": f"00000000-0000-1000-8000-{local_ip.replace('.', '').zfill(12)}",
+                "pdl": pdl_compact,
                 "TLS": "1.2",
                 "Color": "F",
                 "Duplex": "T",
                 "Copies": "T",
             }
+
+            # Compact UUID without dashes to keep it small
+            compact_ip = local_ip.replace(".", "").zfill(12)[:12]
+            props["UUID"] = f"ffffffff-ffff-ffff-ffff-{compact_ip}"
 
             ipp_info = ServiceInfo(
                 type_="_ipp._tcp.local.",
@@ -82,6 +84,16 @@ class MDNSService:
                 server=qualified_host,
             )
 
+            # _printer._tcp — keep under 255 bytes
+            printer_props = {
+                "ty": self.service_name,
+                "adminurl": f"http://{local_ip}:{self.port}/",
+                "note": "PrintSVC Network Print Service",
+                "pdl": pdl_compact,
+                "txtvers": "1",
+                "qtotal": "1",
+            }
+
             printer_info = ServiceInfo(
                 type_="_printer._tcp.local.",
                 name=f"{valid_host}._printer._tcp.local.",
@@ -89,17 +101,7 @@ class MDNSService:
                 port=self.port,
                 weight=0,
                 priority=0,
-                properties={
-                    "ty": self.service_name,
-                    "adminurl": f"http://{local_ip}:{self.port}/",
-                    "note": "PrintSVC Network Print Service",
-                    "pdl": "application/pdf,image/png,image/jpeg,"
-                           "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
-                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
-                           "application/msword,application/vnd.ms-excel",
-                    "txtvers": "1",
-                    "qtotal": "1",
-                },
+                properties=printer_props,
                 server=qualified_host,
             )
 

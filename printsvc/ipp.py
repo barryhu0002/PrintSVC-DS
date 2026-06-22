@@ -87,20 +87,16 @@ TAG_PRINTER = 0x04
 TAG_UNSUPPORTED_GROUP = 0x05
 
 # --- Attribute names we care about ---
-ATTR_CHARSET = "attributes-charset"
-ATTR_NATURAL_LANG = "attributes-natural-language"
-ATTR_PRINTER_URI = "printer-uri"
-ATTR_JOB_URI = "job-uri"
-ATTR_JOB_ID = "job-id"
-ATTR_REQUESTING_USER_NAME = "requesting-user-name"
-ATTR_JOB_NAME = "job-name"
-ATTR_DOCUMENT_FORMAT = "document-format"
-ATTR_DOCUMENT_NATURAL_LANG = "document-natural-language"
-ATTR_COPIES = "copies"
-ATTR_SIDES = "sides"
-ATTR_FINISHINGS = "finishings"
-ATTR_MEDIA = "media"
-ATTR_PRINTER_RESOLUTION = "printer-resolution"
+# These attributes are always text strings regardless of IPP tag encoding
+_TEXT_ATTR_NAMES = frozenset({
+    "attributes-charset", "attributes-natural-language",
+    "printer-uri", "job-uri",
+    "job-id", "requesting-user-name",
+    "job-name", "document-format",
+    "document-natural-language",
+    "sides", "media",
+    "printer-resolution",
+})
 
 _STATUS_STR = {
     OK: "successful-ok",
@@ -322,6 +318,10 @@ def parse_ipp_request(data):
         val_len = struct.unpack("!H", val_len_bytes)[0]
         value = _read_attr_value(stream, tag, val_len)
         if value is not None:
+            # Normalize bytes to str for known text attributes
+            # (some clients send text attributes as TAG_STRING/octetString)
+            if isinstance(value, bytes) and name in _TEXT_ATTR_NAMES:
+                value = value.decode("utf-8", errors="replace")
             current_group.append(IPPAttribute(name, tag, value))
 
     # Rest of data is the document

@@ -387,7 +387,6 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("printer-state-reasons", TAG_KEYWORD, state_reason),
         ("printer-is-accepting-jobs", TAG_BOOLEAN, accepting_jobs),
         ("printer-uuid", TAG_URI, printer_uuid or "urn:uuid:00000000-0000-0000-0000-000000000000"),
-        ("printer-uuid", TAG_URI, printer_uuid or "urn:uuid:00000000-0000-0000-0000-000000000000"),
         ("queued-job-count", TAG_INTEGER, 0),
         ("color-supported", TAG_BOOLEAN, False),  # monochrome printer
         ("operations-supported", TAG_ENUM, OP_PRINT_JOB),
@@ -417,6 +416,35 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("reference-uri-schemes-supported", TAG_URI_SCHEME, "ipp"),
         ("ipp-versions-supported", TAG_KEYWORD, "1.1"),
     ]
+
+    # Mopria certification attributes (required for Android discovery)
+    attrs.append(("mopria-certified", TAG_KEYWORD, "1.3"))
+    attrs.append(("print-color-mode-supported", TAG_KEYWORD, "monochrome"))
+    attrs.append(("print-scaling-supported", TAG_KEYWORD, "auto"))
+    attrs.append(("print-scaling-default", TAG_KEYWORD, "auto"))
+    attrs.append(("media-default", TAG_KEYWORD, "iso_a4_210x297mm"))
+    attrs.append(("media-col-default", TAG_KEYWORD, ""))
+    # No-value required attributes
+    attrs.append(("media-col-ready", TAG_NO_VALUE, b""))
+    attrs.append(("media-ready", TAG_NO_VALUE, b""))
+    attrs.append(("printer-device-id", TAG_TEXT_WO_LANG, "MFG:TOSHIBA;MDL:e-STUDIO240s;CMD:GDI;"))
+    attrs.append(("printer-dns-sd-name", TAG_NAME_WO_LANG, f"PrintSVC-{printer_name}".replace(" ", "-")))
+    attrs.append(("printer-output-tray", TAG_KEYWORD, "top"))
+    attrs.append(("output-bin-supported", TAG_KEYWORD, "top"))
+    attrs.append(("media-type-supported", TAG_KEYWORD, "stationery"))
+    attrs.append(("media-left-margin-supported", TAG_INTEGER, 300))
+    attrs.append(("media-right-margin-supported", TAG_INTEGER, 300))
+    attrs.append(("media-top-margin-supported", TAG_INTEGER, 300))
+    attrs.append(("media-bottom-margin-supported", TAG_INTEGER, 300))
+    attrs.append(("job-pages-per-set-supported", TAG_BOOLEAN, False))
+    attrs.append(("pwg-raster-document-sheet-back", TAG_KEYWORD, "normal"))
+    attrs.append(("document-format-details-supported", TAG_KEYWORD, "document-format"))
+    # PCLm/PCLm/ePCL compatibility
+    attrs.append(("epcl-version-supported", TAG_KEYWORD, "2.1"))
+    attrs.append(("pclm-raster-back-side", TAG_KEYWORD, "flipped"))
+    attrs.append(("pclm-strip-height-preferred", TAG_INTEGER, 0))
+    attrs.append(("pclm-compression-method-preferred", TAG_KEYWORD, "none"))
+    attrs.append(("pclm-source-resolution-supported", TAG_KEYWORD, "600"))
 
     for fmt in formats:
         attrs.append(("document-format-supported", TAG_MIME_MEDIA_TYPE, fmt))

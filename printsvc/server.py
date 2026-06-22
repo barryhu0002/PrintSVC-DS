@@ -250,8 +250,7 @@ class IPPHandler(BaseHTTPRequestHandler):
                     doc_format, copies, sides, orientation, job_name, username, len(req.document))
 
         local_ip = get_local_ip()
-        encoded_name = quote(pname, safe="")
-        printer_uri = f"ipp://{local_ip}:631/ipp/{encoded_name}"
+        printer_uri = f"ipp://{local_ip}:631/ipp/print"
 
         # Create job record
         jid, job_record = job_store.create_job(
@@ -377,8 +376,7 @@ class IPPHandler(BaseHTTPRequestHandler):
 
         pname = printer_name or "Printer"
         local_ip = get_local_ip()
-        encoded_name = quote(pname, safe="")
-        printer_uri = f"ipp://{local_ip}:631/ipp/{encoded_name}"
+        printer_uri = f"ipp://{local_ip}:631/ipp/print"
 
         op_attrs = [
             ("attributes-charset", ipp_proto.TAG_CHARSET, "utf-8"),

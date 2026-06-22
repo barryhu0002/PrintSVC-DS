@@ -372,7 +372,8 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
 
     encoded_name = quote(printer_name, safe="")
     host = host_ip or "localhost"
-    uri_base = f"ipp://{host}:631/ipp/{encoded_name}"
+    rp_path = "ipp/print"
+    uri_base = f"ipp://{host}:631/{rp_path}"
 
     attrs = [
         ("printer-uri-supported", TAG_URI, uri_base),

@@ -16,6 +16,7 @@ from . import ipp as ipp_proto
 from . import winprint
 from . import docrender
 from .netutils import get_local_ip
+from urllib.parse import quote, unquote
 
 logger = logging.getLogger("PrintSVC.Server")
 
@@ -193,8 +194,10 @@ class IPPHandler(BaseHTTPRequestHandler):
         printer_uri = req.get_op_attr("printer-uri", "")
         pname = printer_name
         if printer_uri and "/ipp/" in printer_uri:
-            pname = pname or printer_uri.rsplit("/ipp/", 1)[-1].split("/")[0]
+            pname = pname or unquote(printer_uri.rsplit("/ipp/", 1)[-1].split("/")[0])
         pname = pname or "Printer"
+
+        local_ip = get_local_ip()
 
         # Build response attributes
         op_attrs = [
@@ -206,6 +209,7 @@ class IPPHandler(BaseHTTPRequestHandler):
             printer_name=pname,
             printer_state=3,
             accepting_jobs=True,
+            host_ip=local_ip,
         )
 
         response = ipp_proto.encode_ipp_response(
@@ -245,9 +249,13 @@ class IPPHandler(BaseHTTPRequestHandler):
         logger.info("Print-Job: fmt=%s, copies=%d, sides=%s, orientation=%d, job=%s, user=%s, size=%d bytes",
                     doc_format, copies, sides, orientation, job_name, username, len(req.document))
 
+        local_ip = get_local_ip()
+        encoded_name = quote(pname, safe="")
+        printer_uri = f"ipp://{local_ip}:631/ipp/{encoded_name}"
+
         # Create job record
         jid, job_record = job_store.create_job(
-            printer_uri=f"ipp://localhost:631/ipp/{pname}",
+            printer_uri=printer_uri,
             username=username,
             job_name=job_name,
             document_format=doc_format,
@@ -280,7 +288,7 @@ class IPPHandler(BaseHTTPRequestHandler):
 
         job_attrs = ipp_proto.make_job_attributes(
             job_id=jid,
-            printer_uri=f"ipp://localhost:631/ipp/{pname}",
+            printer_uri=printer_uri,
             status="pending",
             job_name=job_name,
             username=username,
@@ -332,12 +340,16 @@ class IPPHandler(BaseHTTPRequestHandler):
             ("attributes-natural-language", ipp_proto.TAG_NATURAL_LANGUAGE, "en"),
         ]
 
+        local_ip = get_local_ip()
+        encoded_name = quote((printer_name or "Printer"), safe="")
+        printer_uri = f"ipp://{local_ip}:631/ipp/{encoded_name}"
+
         job_attrs = []
         for j in job_store.get_all_jobs(limit=20):
             pname = printer_name or "Printer"
             job_attrs.extend(ipp_proto.make_job_attributes(
                 job_id=j["id"],
-                printer_uri=f"ipp://localhost:631/ipp/{pname}",
+                printer_uri=printer_uri,
                 status=j["state"],
                 job_name=j["job_name"],
                 username=j["username"],
@@ -364,13 +376,17 @@ class IPPHandler(BaseHTTPRequestHandler):
             return self._ipp_error(req, ipp_proto.CLIENT_ERROR_NOT_FOUND)
 
         pname = printer_name or "Printer"
+        local_ip = get_local_ip()
+        encoded_name = quote(pname, safe="")
+        printer_uri = f"ipp://{local_ip}:631/ipp/{encoded_name}"
+
         op_attrs = [
             ("attributes-charset", ipp_proto.TAG_CHARSET, "utf-8"),
             ("attributes-natural-language", ipp_proto.TAG_NATURAL_LANGUAGE, "en"),
         ]
         job_attrs = ipp_proto.make_job_attributes(
             job_id=job["id"],
-            printer_uri=f"ipp://localhost:631/ipp/{pname}",
+            printer_uri=printer_uri,
             status=job["state"],
             job_name=job["job_name"],
             username=job["username"],

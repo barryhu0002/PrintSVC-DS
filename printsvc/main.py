@@ -58,6 +58,10 @@ def main():
 
     level = getattr(logging, config.get("log_level", "INFO").upper(), logging.INFO)
     log_file = config.get("log_file", "")
+    if log_file and not os.path.isabs(log_file):
+        # Resolve relative paths relative to the exe/config directory
+        exe_dir = os.path.dirname(os.path.abspath(sys.argv[0]))
+        log_file = os.path.join(exe_dir, log_file)
     log = setup_logging(log_file=log_file, level=level)
 
     log.info("=" * 60)
@@ -81,6 +85,9 @@ def main():
     server = IPPServer(host=config.get("listen_address", "0.0.0.0"), port=config.get("ipp_port", 631))
     if not server.start():
         log.error("Failed to start IPP server, exiting")
+        print("\nERROR: IPP server failed to start. Port 631 may be in use (run as administrator).")
+        print("       Check " + (log_file or "console") + " for details.")
+        input("\nPress Enter to exit...")
         sys.exit(1)
 
     if config.get("mDNS_enabled", True):

@@ -5,6 +5,7 @@ RFC 2910 (Encoding and Transport), RFC 2911 (Model and Semantics).
 import struct
 import io
 import logging
+from urllib.parse import quote
 
 logger = logging.getLogger("PrintSVC.IPP")
 
@@ -332,8 +333,11 @@ def parse_ipp_request(data):
 # --- Helper functions for building common responses ---
 
 def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
-                            accepting_jobs=True, formats=None, supported=None):
-    """Build the standard printer attribute list for Get-Printer-Attributes response."""
+                            accepting_jobs=True, formats=None, supported=None,
+                            host_ip=None):
+    """Build the standard printer attribute list for Get-Printer-Attributes response.
+    host_ip: actual IP address for printer-uri-supported (if None, uses localhost).
+    """
     if formats is None:
         formats = [
             "application/pdf",
@@ -366,8 +370,12 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     if state_reason is None:
         state_reason = "none"
 
+    encoded_name = quote(printer_name, safe="")
+    host = host_ip or "localhost"
+    uri_base = f"ipp://{host}:631/ipp/{encoded_name}"
+
     attrs = [
-        ("printer-uri-supported", TAG_URI, f"ipp://localhost:631/ipp/{printer_name}"),
+        ("printer-uri-supported", TAG_URI, uri_base),
         ("uri-authentication-supported", TAG_KEYWORD, "requesting-user-name"),
         ("uri-security-supported", TAG_KEYWORD, "none"),
         ("printer-name", TAG_NAME_WO_LANG, printer_name),
@@ -375,6 +383,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("printer-state-reasons", TAG_KEYWORD, state_reason),
         ("printer-is-accepting-jobs", TAG_BOOLEAN, accepting_jobs),
         ("queued-job-count", TAG_INTEGER, 0),
+        ("color-supported", TAG_BOOLEAN, False),  # monochrome printer
         ("operations-supported", TAG_ENUM, OP_PRINT_JOB),
         ("operations-supported", TAG_ENUM, OP_VALIDATE_JOB),
         ("operations-supported", TAG_ENUM, OP_CANCEL_JOB),

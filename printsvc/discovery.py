@@ -52,7 +52,7 @@ class MDNSService:
             pdl_compact = "application/pdf,image/png,image/jpeg,image/tiff"
 
             props = {
-                "rp": f"ipp/print/{self.printer_name}",
+                "rp": "ipp/print",
                 "ty": self.service_name,
                 "adminurl": f"http://{local_ip}:{self.port}/",
                 "note": "PrintSVC Network Print Service",
@@ -63,7 +63,7 @@ class MDNSService:
                 "txtvers": "1",
                 "qtotal": "1",
                 "pdl": pdl_compact,
-                "TLS": "1.2",
+                "TLS": "none",
                 "Color": "F",
                 "Duplex": "T",
                 "Copies": "T",

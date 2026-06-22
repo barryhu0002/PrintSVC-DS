@@ -92,6 +92,8 @@ Output: `dist/PrintSVC.exe` (~24 MB single-file exe).
 
 A `build.bat` script also exists but requires updating the pywin32 DLL paths for the target machine.
 
+**Important**: The `--add-binary` for `pythoncom38.dll` and `pywintypes38.dll` is mandatory — without them the exe crashes at startup with `ImportError: Module 'pythoncom' isn't in frozen sys.path`. These DLLs are located in Python's `Lib/site-packages/pywin32_system32/` directory. Adjust the path to match the build machine.
+
 ### Testing
 
 No formal test framework. Unit tests are ad-hoc Python one-liners:

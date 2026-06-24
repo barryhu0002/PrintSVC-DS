@@ -59,6 +59,19 @@ if %ERRORLEVEL% NEQ 0 (
 echo [OK] Dependencies installed
 echo.
 
+REM ---- Locate pywin32 runtime DLLs ----
+for /f "usebackq delims=" %%P in (`python -c "import os, site; paths = site.getsitepackages() + [site.getusersitepackages()]; matches = [os.path.join(p, 'pywin32_system32') for p in paths if os.path.exists(os.path.join(p, 'pywin32_system32', 'pythoncom38.dll'))]; print(matches[0] if matches else '')"`) do set PYWIN32_SYSTEM32=%%P
+if not exist "%PYWIN32_SYSTEM32%\pythoncom38.dll" (
+    echo [ERROR] pythoncom38.dll not found in %PYWIN32_SYSTEM32%
+    pause
+    exit /b 1
+)
+if not exist "%PYWIN32_SYSTEM32%\pywintypes38.dll" (
+    echo [ERROR] pywintypes38.dll not found in %PYWIN32_SYSTEM32%
+    pause
+    exit /b 1
+)
+
 REM ---- Run PyInstaller ----
 echo [Step 2/5] Cleaning previous build...
 if exist "dist\PrintSVC" rmdir /s /q "dist\PrintSVC"
@@ -73,6 +86,8 @@ python -m PyInstaller ^
     --clean ^
     --noconfirm ^
     --add-data "printsvc.json;." ^
+    --add-binary "%PYWIN32_SYSTEM32%\pythoncom38.dll;." ^
+    --add-binary "%PYWIN32_SYSTEM32%\pywintypes38.dll;." ^
     --hidden-import printsvc ^
     --hidden-import printsvc.ipp ^
     --hidden-import printsvc.server ^

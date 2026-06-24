@@ -49,7 +49,7 @@ class MDNSService:
             qualified_host = f"{valid_host}.local."
 
             # DNS TXT 值上限 255 字节，控制在单条以内（Office 格式通过 IPP 查询获取）
-            pdl_compact = "application/pdf,image/png,image/jpeg,image/tiff"
+            pdl_compact = "application/pdf,image/pwg-raster,application/PCLm,image/urf"
 
             props = {
                 "rp": "ipp/print",
@@ -73,7 +73,10 @@ class MDNSService:
             ip_parts = local_ip.split(".")
             hex_ip = "".join(f"{int(p):02x}" for p in ip_parts)
             hex_ip = hex_ip.zfill(12)[:12]
-            props["UUID"] = f"ffffffff-ffff-4fff-bfff-{hex_ip}"
+            uuid = f"ffffffff-ffff-4fff-bfff-{hex_ip}"
+            props["UUID"] = uuid
+            props["URF"] = "none"
+            props["mopria-certified"] = "1.3"
 
             ipp_info = ServiceInfo(
                 type_="_ipp._tcp.local.",

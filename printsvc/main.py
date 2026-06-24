@@ -70,6 +70,8 @@ def main():
 
     import printsvc.server as svr
     svr.printer_name = config.get("printer_name", "")
+    svr.advertised_printer_name = config.get("service_name", "PrintSVC")
+    svr.server_port = config.get("ipp_port", 631)
 
     if args.install_service:
         _install_service(config)
@@ -90,17 +92,23 @@ def main():
         input("\nPress Enter to exit...")
         sys.exit(1)
 
+    advertised_name = config.get("service_name", "PrintSVC")
+
     if config.get("mDNS_enabled", True):
         global mdns, ssdp
         mdns = MDNSService(
-            hostname=f"PrintSVC-{printer_display_name or 'Printer'}".replace(" ", "-"),
+            hostname=advertised_name.replace(" ", "-"),
             port=config.get("ipp_port", 631),
-            service_name=printer_display_name or "Toshiba E-Studio 240s",
-            printer_name=printer_display_name or "Printer",
+            service_name=advertised_name,
+            printer_name=advertised_name,
         )
         mdns.start()
 
-        ssdp = SSDPListener(port=config.get("ipp_port", 631))
+        ssdp = SSDPListener(
+            port=config.get("ipp_port", 631),
+            server_name=advertised_name,
+            printer_name=advertised_name,
+        )
         ssdp.start()
 
     local_ip = get_local_ip()
@@ -108,7 +116,7 @@ def main():
     log.info("PrintSVC is ready!")
     log.info("  Web Status:    http://localhost:%d/", config.get("ipp_port", 631))
     log.info("  IPP Endpoint:  ipp://%s:%d/ipp/%s", local_ip, config.get("ipp_port", 631),
-             printer_display_name or "printer")
+             advertised_name)
     log.info("  LAN Discovery: mDNS/_ipp._tcp active on port %d", config.get("ipp_port", 631))
     log.info("")
     log.info("Print from your device:")

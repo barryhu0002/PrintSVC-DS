@@ -80,6 +80,7 @@ TAG_URI_SCHEME = 0x46
 TAG_CHARSET = 0x47
 TAG_NATURAL_LANGUAGE = 0x48
 TAG_MIME_MEDIA_TYPE = 0x49
+TAG_MEMBER_ATTR_NAME = 0x4A
 
 # --- Delimiter tags ---
 TAG_OPERATION = 0x01
@@ -145,17 +146,11 @@ def encode_attribute(name, value_tag, value):
         buf.write(struct.pack("!H", 8))
         buf.write(struct.pack("!ii", int(value[0]), int(value[1])))
     elif value_tag == TAG_BEGIN_COLLECTION:
-        # Collection: value is a list of (name, tag, val) member tuples
-        # First encode all members to calculate total value-length
-        members_buf = io.BytesIO()
+        buf.write(struct.pack("!H", 0))
         for member_name, member_tag, member_val in value:
-            members_buf.write(encode_attribute(member_name, member_tag, member_val))
-        member_data = members_buf.getvalue()
-        # Write value-length = members + 1 byte for end-collection (RFC 3380 §4.2)
-        buf.write(struct.pack("!H", len(member_data) + 1))
-        buf.write(member_data)
-        # End collection marker — single byte (0x1B), no trailing fields
-        buf.write(struct.pack("!B", TAG_END_COLLECTION))
+            buf.write(encode_attribute("", TAG_MEMBER_ATTR_NAME, member_name))
+            buf.write(encode_attribute("", member_tag, member_val))
+        buf.write(encode_attribute("", TAG_END_COLLECTION, b""))
     elif isinstance(value, str):
         # Text-based types: keyword, uri, charset, naturalLanguage, name, mimeMediaType, text
         value_bytes = value.encode("utf-8")
@@ -347,10 +342,11 @@ def parse_ipp_request(data):
 
 def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
                             accepting_jobs=True, formats=None, supported=None,
-                            host_ip=None, printer_uuid=None, printer_up_time=None,
-                            make_model=None, device_id=None):
+                            host_ip=None, host_port=631, printer_uuid=None,
+                            printer_up_time=None, make_model=None, device_id=None):
     """Build the standard printer attribute list for Get-Printer-Attributes response.
     host_ip: actual IP address for printer-uri-supported (if None, uses localhost).
+    host_port: IPP port for printer-uri-supported.
     printer_uuid: UUID string matching mDNS TXT record (required by Mopria).
     printer_up_time: seconds since printer started (required by Mopria).
     make_model: human-readable make/model string (default: "PrintSVC Network Printer").
@@ -359,17 +355,12 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     if formats is None:
         formats = [
             "application/pdf",
+            "image/pwg-raster",
+            "application/PCLm",
+            "image/urf",
             "image/png",
             "image/jpeg",
             "image/tiff",
-            "application/octet-stream",
-            # Microsoft Office
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            "application/msword",
-            "application/vnd.ms-excel",
-            "application/vnd.ms-powerpoint",
         ]
     if supported is None:
         supported = {
@@ -391,11 +382,11 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     encoded_name = quote(printer_name, safe="")
     host = host_ip or "localhost"
     rp_path = "ipp/print"
-    uri_base = f"ipp://{host}:631/{rp_path}"
+    uri_base = f"ipp://{host}:{host_port}/{rp_path}"
 
     attrs = [
         ("printer-uri-supported", TAG_URI, uri_base),
-        ("uri-authentication-supported", TAG_KEYWORD, "requesting-user-name"),
+        ("uri-authentication-supported", TAG_KEYWORD, "none"),
         ("uri-security-supported", TAG_KEYWORD, "none"),
         ("printer-name", TAG_NAME_WO_LANG, printer_name),
         ("printer-state", TAG_ENUM, printer_state),  # 3=idle
@@ -431,6 +422,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("number-up-supported", TAG_BOOLEAN, True),
         ("reference-uri-schemes-supported", TAG_URI_SCHEME, "ipp"),
         ("ipp-versions-supported", TAG_KEYWORD, "1.1"),
+        ("ipp-versions-supported", TAG_KEYWORD, "2.0"),
     ]
 
     # Mopria certification attributes (required for Android discovery)
@@ -472,7 +464,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         attrs.append(("media-ready", TAG_KEYWORD, size_name))
     attrs.append(("printer-device-id", TAG_TEXT_WO_LANG,
                   device_id or "MFG:Generic;MDL:Network Printer;CMD:PDF,JPEG,PNG;"))
-    attrs.append(("printer-dns-sd-name", TAG_NAME_WO_LANG, f"PrintSVC-{printer_name}".replace(" ", "-")))
+    attrs.append(("printer-dns-sd-name", TAG_NAME_WO_LANG, printer_name.replace(" ", "-")))
     attrs.append(("printer-output-tray", TAG_KEYWORD, "top"))
     attrs.append(("output-bin-supported", TAG_KEYWORD, "top"))
     attrs.append(("media-type-supported", TAG_KEYWORD, "stationery"))

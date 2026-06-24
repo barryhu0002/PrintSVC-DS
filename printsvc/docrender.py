@@ -77,9 +77,9 @@ def _cleanup_temp(*paths):
 # ---------------------------------------------------------------------------
 # Word -> PDF
 # ---------------------------------------------------------------------------
-def word_to_pdf(docx_data):
+def word_to_pdf(docx_data, ext=".docx"):
     """
-    Convert .docx (or .doc) to PDF via Word COM automation.
+    Convert Word document data to PDF via Word COM automation.
     Returns PDF bytes.
     """
     import win32com.client
@@ -90,7 +90,7 @@ def word_to_pdf(docx_data):
 
     with _com_lock:
         try:
-            src = _ensure_file_ext(docx_data, ".docx")
+            src = _ensure_file_ext(docx_data, ext)
             dst = tempfile.mktemp(suffix=".pdf", prefix="printsvc_word_")
 
             word = win32com.client.Dispatch("Word.Application")
@@ -123,9 +123,9 @@ def word_to_pdf(docx_data):
 # ---------------------------------------------------------------------------
 # Excel -> PDF
 # ---------------------------------------------------------------------------
-def excel_to_pdf(xlsx_data):
+def excel_to_pdf(xlsx_data, ext=".xlsx"):
     """
-    Convert .xlsx (or .xls) to PDF via Excel COM automation.
+    Convert Excel document data to PDF via Excel COM automation.
     Only exports the active sheet, not all sheets.
     Returns PDF bytes.
     """
@@ -137,7 +137,7 @@ def excel_to_pdf(xlsx_data):
 
     with _com_lock:
         try:
-            src = _ensure_file_ext(xlsx_data, ".xlsx")
+            src = _ensure_file_ext(xlsx_data, ext)
             dst = tempfile.mktemp(suffix=".pdf", prefix="printsvc_xls_")
 
             excel = win32com.client.Dispatch("Excel.Application")
@@ -174,9 +174,9 @@ def excel_to_pdf(xlsx_data):
 # ---------------------------------------------------------------------------
 # PowerPoint -> PDF
 # ---------------------------------------------------------------------------
-def ppt_to_pdf(ppt_data):
+def ppt_to_pdf(ppt_data, ext=".pptx"):
     """
-    Convert .pptx (or .ppt) to PDF via PowerPoint COM automation.
+    Convert PowerPoint document data to PDF via PowerPoint COM automation.
     Returns PDF bytes.
     """
     import win32com.client
@@ -187,7 +187,7 @@ def ppt_to_pdf(ppt_data):
 
     with _com_lock:
         try:
-            src = _ensure_file_ext(ppt_data, ".pptx")
+            src = _ensure_file_ext(ppt_data, ext)
             dst = tempfile.mktemp(suffix=".pdf", prefix="printsvc_ppt_")
 
             ppt_app = win32com.client.Dispatch("PowerPoint.Application")
@@ -227,11 +227,17 @@ def office_to_pdf(data, mime_type):
 
     Raises RuntimeError if the format is not supported or conversion fails.
     """
-    if mime_type in (MIME_DOCX, MIME_DOC):
-        return word_to_pdf(data)
-    elif mime_type in (MIME_XLSX, MIME_XLS):
-        return excel_to_pdf(data)
-    elif mime_type in (MIME_PPTX, MIME_PPT):
-        return ppt_to_pdf(data)
+    if mime_type == MIME_DOCX:
+        return word_to_pdf(data, ".docx")
+    elif mime_type == MIME_DOC:
+        return word_to_pdf(data, ".doc")
+    elif mime_type == MIME_XLSX:
+        return excel_to_pdf(data, ".xlsx")
+    elif mime_type == MIME_XLS:
+        return excel_to_pdf(data, ".xls")
+    elif mime_type == MIME_PPTX:
+        return ppt_to_pdf(data, ".pptx")
+    elif mime_type == MIME_PPT:
+        return ppt_to_pdf(data, ".ppt")
     else:
         raise ValueError(f"Unsupported Office format: {mime_type}")

@@ -194,26 +194,26 @@ def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=
         hdc.CreatePrinterDC(printer_name, devmode)
         hdc.StartDoc(printer_name)
 
-        for page_num in range(num_pages):
-            page = doc.load_page(page_num)
-            zoom = 300 / 72
-            pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-            img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        for _ in range(copies):
+            for page_num in range(num_pages):
+                page = doc.load_page(page_num)
+                zoom = 300 / 72
+                pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-            page_width = hdc.GetDeviceCaps(110)
-            page_height = hdc.GetDeviceCaps(111)
-            if orientation in (2, 4):
-                page_width, page_height = page_height, page_width
+                page_width = hdc.GetDeviceCaps(110)
+                page_height = hdc.GetDeviceCaps(111)
+                if orientation in (2, 4):
+                    page_width, page_height = page_height, page_width
 
-            img_width, img_height = img.size
-            scale = min(page_width / img_width, page_height / img_height)
-            draw_w = int(img_width * scale)
-            draw_h = int(img_height * scale)
-            offset_x = (page_width - draw_w) // 2
-            offset_y = (page_height - draw_h) // 2
+                img_width, img_height = img.size
+                scale = min(page_width / img_width, page_height / img_height)
+                draw_w = int(img_width * scale)
+                draw_h = int(img_height * scale)
+                offset_x = (page_width - draw_w) // 2
+                offset_y = (page_height - draw_h) // 2
 
-            dib = ImageWin.Dib(img)
-            for _ in range(copies if page_num == 0 else 1):
+                dib = ImageWin.Dib(img)
                 hdc.StartPage()
                 dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
                 hdc.EndPage()

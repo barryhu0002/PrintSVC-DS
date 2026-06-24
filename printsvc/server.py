@@ -81,7 +81,9 @@ job_store = JobStore()
 
 # Printer status tracking
 printer_name = None
+advertised_printer_name = "PrintSVC"
 printer_config = {}
+server_port = 631
 
 
 class IPPHandler(BaseHTTPRequestHandler):
@@ -196,12 +198,7 @@ class IPPHandler(BaseHTTPRequestHandler):
         """Handle Get-Printer-Attributes request."""
         logger.info("Get-Printer-Attributes from %s", self.client_address[0])
 
-        # Extract printer name from printer-uri: ipp://host:port/ipp/PrinterName
-        printer_uri = req.get_op_attr("printer-uri", "")
-        pname = printer_name
-        if printer_uri and "/ipp/" in printer_uri:
-            pname = pname or unquote(printer_uri.rsplit("/ipp/", 1)[-1].split("/")[0])
-        pname = pname or "Printer"
+        pname = advertised_printer_name or "PrintSVC"
 
         local_ip = get_local_ip()
 
@@ -210,7 +207,7 @@ class IPPHandler(BaseHTTPRequestHandler):
         hex_ip = "".join(f"{int(p):02x}" for p in ip_parts)
         # Pad to 12 hex chars if needed (for IPs with leading zeros)
         hex_ip = hex_ip.zfill(12)[:12]
-        printer_uuid = f"ffffffff-ffff-4fff-bfff-{hex_ip}"
+        printer_uuid = f"urn:uuid:ffffffff-ffff-4fff-bfff-{hex_ip}"
 
         # Build response attributes
         op_attrs = [
@@ -223,13 +220,14 @@ class IPPHandler(BaseHTTPRequestHandler):
             printer_state=3,
             accepting_jobs=True,
             host_ip=local_ip,
+            host_port=server_port,
             printer_uuid=printer_uuid,
             make_model=f"Generic - {pname}",
             device_id="MFG:Generic;MDL:%s;CMD:PDF,JPEG,PNG;CLASS:1.3;" % pname,
         )
 
         response = ipp_proto.encode_ipp_response(
-            1, 1, ipp_proto.OK, req.request_id,
+            req.version_major, req.version_minor, ipp_proto.OK, req.request_id,
             op_attrs,
             printer_attrs=printer_attrs
         )
@@ -266,7 +264,7 @@ class IPPHandler(BaseHTTPRequestHandler):
                     doc_format, copies, sides, orientation, job_name, username, len(req.document))
 
         local_ip = get_local_ip()
-        printer_uri = f"ipp://{local_ip}:631/ipp/print"
+        printer_uri = f"ipp://{local_ip}:{server_port}/ipp/print"
 
         # Create job record
         jid, job_record = job_store.create_job(
@@ -313,7 +311,7 @@ class IPPHandler(BaseHTTPRequestHandler):
         )
 
         response = ipp_proto.encode_ipp_response(
-            1, 1, ipp_proto.OK, req.request_id,
+            req.version_major, req.version_minor, ipp_proto.OK, req.request_id,
             op_attrs,
             job_attrs=job_attrs
         )
@@ -324,6 +322,7 @@ class IPPHandler(BaseHTTPRequestHandler):
         doc_format = req.document_format
         supported_formats = [
             "application/pdf",
+            "image/pwg-raster", "application/PCLm", "image/urf",
             "image/png", "image/jpeg", "image/tiff", "image/bmp",
             "application/octet-stream",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -343,7 +342,7 @@ class IPPHandler(BaseHTTPRequestHandler):
             ("attributes-natural-language", ipp_proto.TAG_NATURAL_LANGUAGE, "en"),
         ]
         response = ipp_proto.encode_ipp_response(
-            1, 1, ipp_proto.OK, req.request_id, op_attrs
+            req.version_major, req.version_minor, ipp_proto.OK, req.request_id, op_attrs
         )
         logger.info("Validate-Job OK for format %s", doc_format)
         return response
@@ -357,7 +356,7 @@ class IPPHandler(BaseHTTPRequestHandler):
 
         local_ip = get_local_ip()
         encoded_name = quote((printer_name or "Printer"), safe="")
-        printer_uri = f"ipp://{local_ip}:631/ipp/{encoded_name}"
+        printer_uri = f"ipp://{local_ip}:{server_port}/ipp/{encoded_name}"
 
         job_attrs = []
         for j in job_store.get_all_jobs(limit=20):
@@ -374,7 +373,7 @@ class IPPHandler(BaseHTTPRequestHandler):
             ))
 
         response = ipp_proto.encode_ipp_response(
-            1, 1, ipp_proto.OK, req.request_id,
+            req.version_major, req.version_minor, ipp_proto.OK, req.request_id,
             op_attrs,
             job_attrs=job_attrs,
         )
@@ -392,7 +391,7 @@ class IPPHandler(BaseHTTPRequestHandler):
 
         pname = printer_name or "Printer"
         local_ip = get_local_ip()
-        printer_uri = f"ipp://{local_ip}:631/ipp/print"
+        printer_uri = f"ipp://{local_ip}:{server_port}/ipp/print"
 
         op_attrs = [
             ("attributes-charset", ipp_proto.TAG_CHARSET, "utf-8"),
@@ -410,7 +409,7 @@ class IPPHandler(BaseHTTPRequestHandler):
         )
 
         response = ipp_proto.encode_ipp_response(
-            1, 1, ipp_proto.OK, req.request_id,
+            req.version_major, req.version_minor, ipp_proto.OK, req.request_id,
             op_attrs,
             job_attrs=job_attrs,
         )
@@ -437,7 +436,7 @@ class IPPHandler(BaseHTTPRequestHandler):
             ("attributes-natural-language", ipp_proto.TAG_NATURAL_LANGUAGE, "en"),
         ]
         response = ipp_proto.encode_ipp_response(
-            1, 1, ipp_proto.OK, req.request_id, op_attrs
+            req.version_major, req.version_minor, ipp_proto.OK, req.request_id, op_attrs
         )
         return response
 
@@ -448,7 +447,7 @@ class IPPHandler(BaseHTTPRequestHandler):
             ("attributes-natural-language", ipp_proto.TAG_NATURAL_LANGUAGE, "en"),
         ]
         logger.warning("IPP error response: %s", ipp_proto.status_str(status_code))
-        return ipp_proto.encode_ipp_response(1, 1, status_code, req.request_id, op_attrs)
+        return ipp_proto.encode_ipp_response(req.version_major, req.version_minor, status_code, req.request_id, op_attrs)
 
     # ---- HTTP API and Status Pages ----
 
@@ -545,11 +544,11 @@ class IPPHandler(BaseHTTPRequestHandler):
       <span class="label">Service:</span>
       <span class="value"><span class="status-dot dot-green"></span> Running</span>
       <span class="label">IPP Port:</span>
-      <span class="value">631</span>
+      <span class="value">{server_port}</span>
       <span class="label">mDNS:</span>
       <span class="value"><span class="status-dot dot-green"></span> Active</span>
       <span class="label">Printer URI:</span>
-      <span class="value"><code>ipp://{local_ip}:631/ipp/{pname or 'printer'}</code></span>
+      <span class="value"><code>ipp://{local_ip}:{server_port}/ipp/{pname or 'printer'}</code></span>
     </div>
   </div>
 

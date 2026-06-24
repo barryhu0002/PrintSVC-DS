@@ -1,13 +1,15 @@
 # PrintSVC dependencies
+# Target: Windows 7 32-bit, Python 3.8.10 32-bit
+
 # Core
-pywin32>=300
-Pillow>=8.0.0
+pywin32>=300,<307
+Pillow>=8.0.0,<10
 
 # mDNS discovery
-zeroconf>=0.30.0
+zeroconf>=0.30.0,<0.40
 
 # PDF support
-PyMuPDF>=1.18.0
+PyMuPDF>=1.18.0,<1.22
 
 # PyInstaller for packaging (build time only)
-pyinstaller>=4.0
+pyinstaller>=4.0,<6

@@ -59,27 +59,27 @@ SERVER_ERROR_MULTIPLE_DOCUMENT_JOBS_NOT_SUPPORTED = 0x0509
 
 # --- Tag values for attribute syntax (RFC 2911 §4.1) ---
 TAG_UNSUPPORTED = 0x10
-TAG_UNKNOWN = 0x11
-TAG_NO_VALUE = 0x12
-TAG_INTEGER = 0x13
-TAG_BOOLEAN = 0x14
-TAG_ENUM = 0x15
-TAG_STRING = 0x16  # octetString (undefined)
-TAG_DATETIME = 0x17
-TAG_RESOLUTION = 0x18
-TAG_RANGEOFINTEGER = 0x19
-TAG_BEGIN_COLLECTION = 0x1A
-TAG_END_COLLECTION = 0x1B
-TAG_TEXT_WO_LANG = 0x1C
-TAG_NAME_WO_LANG = 0x1D
-TAG_TEXT_W_LANG = 0x21
-TAG_NAME_W_LANG = 0x22
-TAG_KEYWORD = 0x23
-TAG_URI = 0x24
-TAG_URI_SCHEME = 0x25
-TAG_CHARSET = 0x26
-TAG_NATURAL_LANGUAGE = 0x27
-TAG_MIME_MEDIA_TYPE = 0x28
+TAG_UNKNOWN = 0x12
+TAG_NO_VALUE = 0x13
+TAG_INTEGER = 0x21
+TAG_BOOLEAN = 0x22
+TAG_ENUM = 0x23
+TAG_STRING = 0x30  # octetString (undefined)
+TAG_DATETIME = 0x31
+TAG_RESOLUTION = 0x32
+TAG_RANGEOFINTEGER = 0x33
+TAG_BEGIN_COLLECTION = 0x34
+TAG_END_COLLECTION = 0x37
+TAG_TEXT_W_LANG = 0x35
+TAG_NAME_W_LANG = 0x36
+TAG_TEXT_WO_LANG = 0x41
+TAG_NAME_WO_LANG = 0x42
+TAG_KEYWORD = 0x44
+TAG_URI = 0x45
+TAG_URI_SCHEME = 0x46
+TAG_CHARSET = 0x47
+TAG_NATURAL_LANGUAGE = 0x48
+TAG_MIME_MEDIA_TYPE = 0x49
 
 # --- Delimiter tags ---
 TAG_OPERATION = 0x01
@@ -347,11 +347,14 @@ def parse_ipp_request(data):
 
 def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
                             accepting_jobs=True, formats=None, supported=None,
-                            host_ip=None, printer_uuid=None, printer_up_time=None):
+                            host_ip=None, printer_uuid=None, printer_up_time=None,
+                            make_model=None, device_id=None):
     """Build the standard printer attribute list for Get-Printer-Attributes response.
     host_ip: actual IP address for printer-uri-supported (if None, uses localhost).
     printer_uuid: UUID string matching mDNS TXT record (required by Mopria).
     printer_up_time: seconds since printer started (required by Mopria).
+    make_model: human-readable make/model string (default: "PrintSVC Network Printer").
+    device_id: printer-device-id string per IEEE 1284.4 (default: generic).
     """
     if formats is None:
         formats = [
@@ -411,7 +414,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("charset-supported", TAG_CHARSET, "utf-8"),
         ("natural-language-configured", TAG_NATURAL_LANGUAGE, "en"),
         ("natural-language-supported", TAG_NATURAL_LANGUAGE, "en"),
-        ("printer-make-and-model", TAG_TEXT_WO_LANG, "Toshiba E-Studio 240s"),
+        ("printer-make-and-model", TAG_TEXT_WO_LANG, make_model or "PrintSVC Network Printer"),
         ("printer-location", TAG_TEXT_WO_LANG, ""),
         ("printer-info", TAG_TEXT_WO_LANG, "PrintSVC Network Print Service"),
         ("printer-up-time", TAG_INTEGER, printer_up_time if printer_up_time is not None else 0),
@@ -467,7 +470,8 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     # media-ready: keywords for each supported media
     for size_name, _, _ in _media_col_entries:
         attrs.append(("media-ready", TAG_KEYWORD, size_name))
-    attrs.append(("printer-device-id", TAG_TEXT_WO_LANG, "MFG:TOSHIBA;MDL:e-STUDIO240s;CMD:GDI;"))
+    attrs.append(("printer-device-id", TAG_TEXT_WO_LANG,
+                  device_id or "MFG:PrintSVC;MDL:Network Printer;CMD:PDF,JPEG,PNG;"))
     attrs.append(("printer-dns-sd-name", TAG_NAME_WO_LANG, f"PrintSVC-{printer_name}".replace(" ", "-")))
     attrs.append(("printer-output-tray", TAG_KEYWORD, "top"))
     attrs.append(("output-bin-supported", TAG_KEYWORD, "top"))

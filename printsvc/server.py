@@ -221,6 +221,8 @@ class IPPHandler(BaseHTTPRequestHandler):
             accepting_jobs=True,
             host_ip=local_ip,
             printer_uuid=printer_uuid,
+            make_model=f"PrintSVC - {pname}",
+            device_id="MFG:PrintSVC;MDL:Network Printer;CMD:PDF,JPEG,PNG;CLASS:1.3;",
         )
 
         response = ipp_proto.encode_ipp_response(

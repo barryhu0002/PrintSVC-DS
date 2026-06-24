@@ -11,6 +11,15 @@ REM ==========================================
 
 setlocal enabledelayedexpansion
 
+REM Allow overriding the Python interpreter when PATH order is wrong.
+if defined PYTHON_EXE (
+    set "PYTHON_CMD=%PYTHON_EXE%"
+) else if exist "C:\Users\cheng\AppData\Local\Programs\Python\Python38-32\python.exe" (
+    set "PYTHON_CMD=C:\Users\cheng\AppData\Local\Programs\Python\Python38-32\python.exe"
+) else (
+    set "PYTHON_CMD=python"
+)
+
 echo ==========================================
 echo  PrintSVC Build Script
 echo  Target: Windows 7 32-bit
@@ -18,22 +27,14 @@ echo ==========================================
 echo.
 
 REM ---- Check Python version ----
-where python >nul 2>nul
-if %ERRORLEVEL% NEQ 0 (
-    echo [ERROR] Python not found. Please install Python 3.8 32-bit.
-    echo   Download: https://www.python.org/downloads/release/python-3810/
-    pause
-    exit /b 1
-)
-
-python --version 2>&1 | findstr "3.8" >nul
+"%PYTHON_CMD%" --version 2>nul | findstr "3.8" >nul
 if %ERRORLEVEL% NEQ 0 (
     echo [WARNING] Python version may not be 3.8. Win7 32-bit best with Python 3.8.
-    python --version
+    "%PYTHON_CMD%" --version
 )
 
 REM ---- Check architecture (32-bit required) ----
-python -c "import struct; exit(8 if struct.calcsize('P') != 4 else 0)" 2>nul
+"%PYTHON_CMD%" -c "import struct; exit(8 if struct.calcsize('P') != 4 else 0)" 2>nul
 if %ERRORLEVEL% NEQ 0 (
     echo.
     echo [ERROR] Python must be 32-bit for Win7 32-bit compatibility.
@@ -49,8 +50,8 @@ echo.
 
 REM ---- Install/upgrade dependencies ----
 echo [Step 1/5] Installing dependencies...
-python -m pip install --upgrade pip -q
-python -m pip install -r requirements.txt
+"%PYTHON_CMD%" -m pip install --upgrade pip -q
+"%PYTHON_CMD%" -m pip install -r requirements.txt
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] pip install failed
     pause
@@ -60,7 +61,7 @@ echo [OK] Dependencies installed
 echo.
 
 REM ---- Locate pywin32 runtime DLLs ----
-for /f "usebackq delims=" %%P in (`python -c "import os, site; paths = site.getsitepackages() + [site.getusersitepackages()]; matches = [os.path.join(p, 'pywin32_system32') for p in paths if os.path.exists(os.path.join(p, 'pywin32_system32', 'pythoncom38.dll'))]; print(matches[0] if matches else '')"`) do set PYWIN32_SYSTEM32=%%P
+for /f "usebackq delims=" %%P in (`"%PYTHON_CMD%" -c "import os, site; paths = site.getsitepackages() + [site.getusersitepackages()]; matches = [os.path.join(p, 'pywin32_system32') for p in paths if os.path.exists(os.path.join(p, 'pywin32_system32', 'pythoncom38.dll'))]; print(matches[0] if matches else '')"`) do set PYWIN32_SYSTEM32=%%P
 if not exist "%PYWIN32_SYSTEM32%\pythoncom38.dll" (
     echo [ERROR] pythoncom38.dll not found in %PYWIN32_SYSTEM32%
     pause
@@ -79,7 +80,7 @@ if exist "build\PrintSVC" rmdir /s /q "build\PrintSVC"
 if exist "dist\PrintSVC.exe" del /q "dist\PrintSVC.exe"
 
 echo [Step 3/5] Building executable (this may take several minutes)...
-python -m PyInstaller ^
+"%PYTHON_CMD%" -m PyInstaller ^
     --name PrintSVC ^
     --onefile ^
     --console ^

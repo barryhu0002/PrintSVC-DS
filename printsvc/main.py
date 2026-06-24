@@ -115,8 +115,7 @@ def main():
     log.info("")
     log.info("PrintSVC is ready!")
     log.info("  Web Status:    http://localhost:%d/", config.get("ipp_port", 631))
-    log.info("  IPP Endpoint:  ipp://%s:%d/ipp/%s", local_ip, config.get("ipp_port", 631),
-             advertised_name)
+    log.info("  IPP Endpoint:  ipp://%s:%d/ipp/print", local_ip, config.get("ipp_port", 631))
     log.info("  LAN Discovery: mDNS/_ipp._tcp active on port %d", config.get("ipp_port", 631))
     log.info("")
     log.info("Print from your device:")

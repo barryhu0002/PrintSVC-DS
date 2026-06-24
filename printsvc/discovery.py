@@ -56,9 +56,9 @@ class MDNSService:
                 "ty": self.service_name,
                 "adminurl": f"http://{local_ip}:{self.port}/",
                 "note": "PrintSVC Network Print Service",
-                "product": "(Toshiba E-Studio 240s)",
-                "usb_MFG": "TOSHIBA",
-                "usb_MDL": "e-STUDIO240s",
+                "product": f"({self.service_name})",
+                "usb_MFG": "Generic",
+                "usb_MDL": self.service_name,
                 "priority": "50",
                 "txtvers": "1",
                 "qtotal": "1",
@@ -69,9 +69,11 @@ class MDNSService:
                 "Copies": "T",
             }
 
-            # Compact UUID without dashes to keep it small
-            compact_ip = local_ip.replace(".", "").zfill(12)[:12]
-            props["UUID"] = f"ffffffff-ffff-ffff-ffff-{compact_ip}"
+            # Generate a valid RFC 4122 UUID from the local IP (12 hex chars for last segment)
+            ip_parts = local_ip.split(".")
+            hex_ip = "".join(f"{int(p):02x}" for p in ip_parts)
+            hex_ip = hex_ip.zfill(12)[:12]
+            props["UUID"] = f"ffffffff-ffff-4fff-bfff-{hex_ip}"
 
             ipp_info = ServiceInfo(
                 type_="_ipp._tcp.local.",

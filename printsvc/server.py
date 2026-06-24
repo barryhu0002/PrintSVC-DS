@@ -205,9 +205,12 @@ class IPPHandler(BaseHTTPRequestHandler):
 
         local_ip = get_local_ip()
 
-        # Build the same UUID used by mDNS discovery
-        compact_ip = local_ip.replace(".", "").zfill(12)[:12]
-        printer_uuid = f"ffffffff-ffff-ffff-ffff-{compact_ip}"
+        # Generate a valid RFC 4122 UUID from the local IP (12 hex chars for last segment)
+        ip_parts = local_ip.split(".")
+        hex_ip = "".join(f"{int(p):02x}" for p in ip_parts)
+        # Pad to 12 hex chars if needed (for IPs with leading zeros)
+        hex_ip = hex_ip.zfill(12)[:12]
+        printer_uuid = f"ffffffff-ffff-4fff-bfff-{hex_ip}"
 
         # Build response attributes
         op_attrs = [
@@ -221,8 +224,8 @@ class IPPHandler(BaseHTTPRequestHandler):
             accepting_jobs=True,
             host_ip=local_ip,
             printer_uuid=printer_uuid,
-            make_model=f"PrintSVC - {pname}",
-            device_id="MFG:PrintSVC;MDL:Network Printer;CMD:PDF,JPEG,PNG;CLASS:1.3;",
+            make_model=f"Generic - {pname}",
+            device_id="MFG:Generic;MDL:%s;CMD:PDF,JPEG,PNG;CLASS:1.3;" % pname,
         )
 
         response = ipp_proto.encode_ipp_response(

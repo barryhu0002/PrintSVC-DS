@@ -471,7 +471,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
     for size_name, _, _ in _media_col_entries:
         attrs.append(("media-ready", TAG_KEYWORD, size_name))
     attrs.append(("printer-device-id", TAG_TEXT_WO_LANG,
-                  device_id or "MFG:PrintSVC;MDL:Network Printer;CMD:PDF,JPEG,PNG;"))
+                  device_id or "MFG:Generic;MDL:Network Printer;CMD:PDF,JPEG,PNG;"))
     attrs.append(("printer-dns-sd-name", TAG_NAME_WO_LANG, f"PrintSVC-{printer_name}".replace(" ", "-")))
     attrs.append(("printer-output-tray", TAG_KEYWORD, "top"))
     attrs.append(("output-bin-supported", TAG_KEYWORD, "top"))

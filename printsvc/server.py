@@ -117,13 +117,14 @@ class IPPHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         """Handle POST requests - primarily IPP print jobs."""
         content_type = self.headers.get("Content-Type", "")
+        transfer_encoding = self.headers.get("Transfer-Encoding", "").lower()
         content_length = int(self.headers.get("Content-Length", 0))
 
-        logger.debug("POST %s from %s, Content-Type: %s, Length: %d",
-                     self.path, self.client_address, content_type, content_length)
+        logger.debug("POST %s from %s, Content-Type: %s, Transfer-Encoding: %s, Length: %d",
+                     self.path, self.client_address, content_type, transfer_encoding, content_length)
 
         if "application/ipp" in content_type:
-            body = self.rfile.read(content_length) if content_length > 0 else b""
+            body = self._read_request_body(content_length, transfer_encoding)
             self._handle_ipp_request(body)
         elif content_type == "application/json":
             body = self.rfile.read(content_length) if content_length > 0 else b""
@@ -133,6 +134,29 @@ class IPPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "text/plain")
             self.end_headers()
             self.wfile.write(b"Unsupported Content-Type")
+
+    def _read_request_body(self, content_length, transfer_encoding):
+        if transfer_encoding == "chunked":
+            return self._read_chunked_body()
+        return self.rfile.read(content_length) if content_length > 0 else b""
+
+    def _read_chunked_body(self):
+        chunks = []
+        while True:
+            size_line = self.rfile.readline().strip()
+            if not size_line:
+                break
+            size = int(size_line.split(b";", 1)[0], 16)
+            if size == 0:
+                while True:
+                    line = self.rfile.readline()
+                    if line in (b"\r\n", b"\n", b""):
+                        break
+                break
+            chunk = self.rfile.read(size)
+            chunks.append(chunk)
+            self.rfile.read(2)
+        return b"".join(chunks)
 
     # ---- IPP Request Handling ----
 

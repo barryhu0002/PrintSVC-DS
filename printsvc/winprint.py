@@ -126,7 +126,6 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
         printer_info = win32print.GetPrinter(hprinter, 2)
         devmode = printer_info.get("pDevMode")
         if devmode is None:
-            # Use default devmode if none available
             devmode = win32print.GetPrinter(hprinter, 2)["pDevMode"]
 
         devmode.Copies = copies
@@ -138,27 +137,33 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
             devmode.Duplex = 2
 
         hdc = win32ui.CreateDC()
-        hdc.CreatePrinterDC(printer_name, devmode)
-        hdc.StartDoc(printer_name)
+        try:
+            hdc.CreatePrinterDC(printer_name)
+            try:
+                hdc.ResetDC(devmode)
+            except Exception:
+                pass
+            hdc.StartDoc(printer_name)
 
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-        dib = ImageWin.Dib(image)
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+            dib = ImageWin.Dib(image)
 
-        scale = min(page_width_px / img_width, page_height_px / img_height)
-        draw_w = int(img_width * scale)
-        draw_h = int(img_height * scale)
-        offset_x = (page_width_px - draw_w) // 2
-        offset_y = (page_height_px - draw_h) // 2
+            scale = min(page_width_px / img_width, page_height_px / img_height)
+            draw_w = int(img_width * scale)
+            draw_h = int(img_height * scale)
+            offset_x = (page_width_px - draw_w) // 2
+            offset_y = (page_height_px - draw_h) // 2
 
-        for _ in range(copies):
-            hdc.StartPage()
-            dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
-            hdc.EndPage()
+            for _ in range(copies):
+                hdc.StartPage()
+                dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
+                hdc.EndPage()
 
-        hdc.EndDoc()
-        hdc.DeleteDC()
-        logger.info("Printed image (%dx%d) -> %s", img_width, img_height, printer_name)
+            hdc.EndDoc()
+            logger.info("Printed image (%dx%d) -> %s", img_width, img_height, printer_name)
+        finally:
+            hdc.DeleteDC()
     finally:
         win32print.ClosePrinter(hprinter)
 
@@ -191,37 +196,43 @@ def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=
             devmode.Duplex = 3 if "long" in sides else 2
 
         hdc = win32ui.CreateDC()
-        hdc.CreatePrinterDC(printer_name, devmode)
-        hdc.StartDoc(printer_name)
+        try:
+            hdc.CreatePrinterDC(printer_name)
+            try:
+                hdc.ResetDC(devmode)
+            except Exception:
+                pass
+            hdc.StartDoc(printer_name)
 
-        for _ in range(copies):
-            for page_num in range(num_pages):
-                page = doc.load_page(page_num)
-                zoom = 300 / 72
-                pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
-                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+            for _ in range(copies):
+                for page_num in range(num_pages):
+                    page = doc.load_page(page_num)
+                    zoom = 300 / 72
+                    pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
+                    img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-                page_width = hdc.GetDeviceCaps(110)
-                page_height = hdc.GetDeviceCaps(111)
-                if orientation in (2, 4):
-                    page_width, page_height = page_height, page_width
+                    page_width = hdc.GetDeviceCaps(110)
+                    page_height = hdc.GetDeviceCaps(111)
+                    if orientation in (2, 4):
+                        page_width, page_height = page_height, page_width
 
-                img_width, img_height = img.size
-                scale = min(page_width / img_width, page_height / img_height)
-                draw_w = int(img_width * scale)
-                draw_h = int(img_height * scale)
-                offset_x = (page_width - draw_w) // 2
-                offset_y = (page_height - draw_h) // 2
+                    img_width, img_height = img.size
+                    scale = min(page_width / img_width, page_height / img_height)
+                    draw_w = int(img_width * scale)
+                    draw_h = int(img_height * scale)
+                    offset_x = (page_width - draw_w) // 2
+                    offset_y = (page_height - draw_h) // 2
 
-                dib = ImageWin.Dib(img)
-                hdc.StartPage()
-                dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
-                hdc.EndPage()
+                    dib = ImageWin.Dib(img)
+                    hdc.StartPage()
+                    dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
+                    hdc.EndPage()
 
-        hdc.EndDoc()
-        hdc.DeleteDC()
-        doc.close()
-        logger.info("PDF printed: %d pages, %d copies", num_pages, copies)
+            hdc.EndDoc()
+            logger.info("PDF printed: %d pages, %d copies", num_pages, copies)
+        finally:
+            hdc.DeleteDC()
+            doc.close()
     finally:
         win32print.ClosePrinter(hprinter)
 

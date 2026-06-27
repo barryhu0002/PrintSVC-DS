@@ -186,7 +186,8 @@ class IPPHandler(BaseHTTPRequestHandler):
     def _op_name(self, op):
         names = {
             0x0002: "Print-Job",
-            0x0003: "Validate-Job",
+            0x0003: "Print-URI",
+            0x0004: "Validate-Job",
             0x0008: "Cancel-Job",
             0x0009: "Get-Job-Attributes",
             0x000A: "Get-Jobs",

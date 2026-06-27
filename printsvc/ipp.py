@@ -12,7 +12,8 @@ logger = logging.getLogger("PrintSVC.IPP")
 
 # --- Operation codes (RFC 2911 §4.4.15) ---
 OP_PRINT_JOB = 0x0002
-OP_VALIDATE_JOB = 0x0003
+OP_PRINT_URI = 0x0003
+OP_VALIDATE_JOB = 0x0004
 OP_CANCEL_JOB = 0x0008
 OP_GET_JOB_ATTRS = 0x0009
 OP_GET_JOBS = 0x000A
@@ -396,6 +397,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("queued-job-count", TAG_INTEGER, 0),
         ("color-supported", TAG_BOOLEAN, False),  # monochrome printer
         ("operations-supported", TAG_ENUM, OP_PRINT_JOB),
+        ("operations-supported", TAG_ENUM, OP_PRINT_URI),
         ("operations-supported", TAG_ENUM, OP_VALIDATE_JOB),
         ("operations-supported", TAG_ENUM, OP_CANCEL_JOB),
         ("operations-supported", TAG_ENUM, OP_GET_JOB_ATTRS),

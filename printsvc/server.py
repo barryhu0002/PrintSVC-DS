@@ -240,6 +240,14 @@ class IPPHandler(BaseHTTPRequestHandler):
             ("attributes-natural-language", ipp_proto.TAG_NATURAL_LANGUAGE, "en"),
         ]
 
+        requested_attrs = []
+        for attr in req.operation_attrs:
+            if attr.name == "requested-attributes":
+                if isinstance(attr.value, (list, tuple)):
+                    requested_attrs.extend(attr.value)
+                else:
+                    requested_attrs.append(attr.value)
+
         printer_attrs = ipp_proto.make_printer_attributes(
             printer_name=pname,
             printer_state=3,
@@ -250,6 +258,23 @@ class IPPHandler(BaseHTTPRequestHandler):
             make_model=f"Generic - {pname}",
             device_id="MFG:Generic;MDL:%s;CMD:PDF,JPEG,PNG;CLASS:1.3;" % pname,
         )
+
+        if requested_attrs:
+            requested = {name.lower() for name in requested_attrs}
+            minimal = {
+                "printer-uri-supported",
+                "printer-name",
+                "printer-state",
+                "printer-state-reasons",
+                "printer-is-accepting-jobs",
+                "printer-uuid",
+                "queued-job-count",
+            }
+            if "all" not in requested:
+                printer_attrs = [
+                    attr for attr in printer_attrs
+                    if attr[0].lower() in minimal or attr[0].lower() in requested
+                ]
 
         response = ipp_proto.encode_ipp_response(
             req.version_major, req.version_minor, ipp_proto.OK, req.request_id,

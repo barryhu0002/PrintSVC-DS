@@ -146,6 +146,9 @@ def encode_attribute(name, value_tag, value):
     elif value_tag == TAG_RANGEOFINTEGER:
         buf.write(struct.pack("!H", 8))
         buf.write(struct.pack("!ii", int(value[0]), int(value[1])))
+    elif value_tag == TAG_RESOLUTION:
+        buf.write(struct.pack("!H", 9))
+        buf.write(struct.pack("!iiB", int(value[0]), int(value[1]), int(value[2])))
     elif value_tag == TAG_BEGIN_COLLECTION:
         buf.write(struct.pack("!H", 0))
         for member_name, member_tag, member_val in value:
@@ -294,6 +297,7 @@ def parse_ipp_request(data):
         struct.unpack("!BBHI", header)
 
     current_group = req.operation_attrs
+    last_name = None
     while True:
         tag = stream.read(1)
         if not tag:
@@ -304,15 +308,19 @@ def parse_ipp_request(data):
             break
         elif tag == TAG_OPERATION:
             current_group = req.operation_attrs
+            last_name = None
             continue
         elif tag == TAG_JOB:
             current_group = req.job_attrs
+            last_name = None
             continue
         elif tag == TAG_PRINTER:
             current_group = req.printer_attrs
+            last_name = None
             continue
         elif tag == TAG_UNSUPPORTED_GROUP:
             current_group = []  # discard unsupported
+            last_name = None
             continue
 
         # Read attribute
@@ -320,7 +328,11 @@ def parse_ipp_request(data):
         if len(name_len_bytes) < 2:
             break
         name_len = struct.unpack("!H", name_len_bytes)[0]
-        name = stream.read(name_len).decode("ascii", errors="replace")
+        if name_len == 0:
+            name = last_name or ""
+        else:
+            name = stream.read(name_len).decode("ascii", errors="replace")
+            last_name = name
 
         val_len_bytes = stream.read(2)
         if len(val_len_bytes) < 2:
@@ -374,7 +386,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
             "finishings": [3],  # 3 = none
             "orientation-requested": [1, 2, 3, 4],  # portrait, landscape, rev-portrait, rev-landscape
             "print-quality": [3, 4, 5],  # draft, normal, high
-            "resolution": ["600x600dpi", "300x300dpi"],
+            "resolution": [(600, 600, 3), (300, 300, 3)],
         }
 
     if state_reason is None:
@@ -397,7 +409,6 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("queued-job-count", TAG_INTEGER, 0),
         ("color-supported", TAG_BOOLEAN, False),  # monochrome printer
         ("operations-supported", TAG_ENUM, OP_PRINT_JOB),
-        ("operations-supported", TAG_ENUM, OP_PRINT_URI),
         ("operations-supported", TAG_ENUM, OP_VALIDATE_JOB),
         ("operations-supported", TAG_ENUM, OP_CANCEL_JOB),
         ("operations-supported", TAG_ENUM, OP_GET_JOB_ATTRS),
@@ -421,7 +432,21 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         ("job-creation-attributes-supported", TAG_KEYWORD, "finishings"),
         ("page-ranges-supported", TAG_BOOLEAN, True),
         ("multiple-document-jobs-supported", TAG_BOOLEAN, False),
-        ("number-up-supported", TAG_BOOLEAN, True),
+        ("multiple-document-handling-supported", TAG_KEYWORD, "single-document"),
+        ("multiple-document-handling-default", TAG_KEYWORD, "single-document"),
+        ("number-up-supported", TAG_INTEGER, 1),
+        ("number-up-default", TAG_INTEGER, 1),
+        ("orientation-requested-default", TAG_ENUM, 3),
+        ("print-quality-default", TAG_ENUM, 4),
+        ("finishings-default", TAG_ENUM, 3),
+        ("sides-default", TAG_KEYWORD, "one-sided"),
+        ("output-bin-default", TAG_KEYWORD, "top"),
+        ("print-color-mode-default", TAG_KEYWORD, "monochrome"),
+        ("printer-resolution-default", TAG_RESOLUTION, (600, 600, 3)),
+        ("document-format-default", TAG_MIME_MEDIA_TYPE, "application/pdf"),
+        ("document-format-preferred", TAG_MIME_MEDIA_TYPE, "application/pdf"),
+        ("client-info-supported", TAG_BOOLEAN, True),
+        ("printer-strings-languages-supported", TAG_NATURAL_LANGUAGE, "zh-cn"),
         ("reference-uri-schemes-supported", TAG_URI_SCHEME, "ipp"),
         ("ipp-versions-supported", TAG_KEYWORD, "1.1"),
         ("ipp-versions-supported", TAG_KEYWORD, "2.0"),
@@ -497,8 +522,11 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         attrs.append(("orientation-requested-supported", TAG_ENUM, orient))
     for qual in supported.get("print-quality", [4]):
         attrs.append(("print-quality-supported", TAG_ENUM, qual))
-    for res in supported.get("resolution", ["600x600dpi"]):
-        attrs.append(("printer-resolution-supported", TAG_KEYWORD, res))
+    for res in supported.get("resolution", [(600, 600, 3)]):
+        if isinstance(res, tuple):
+            attrs.append(("printer-resolution-supported", TAG_RESOLUTION, res))
+        else:
+            attrs.append(("printer-resolution-supported", TAG_KEYWORD, res))
 
     # Mopria requires copies-supported even if we only support 1
     attrs.append(("copies-supported", TAG_RANGEOFINTEGER, (1, 99)))

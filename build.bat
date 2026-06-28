@@ -83,7 +83,7 @@ echo [Step 3/5] Building executable (this may take several minutes)...
 "%PYTHON_CMD%" -m PyInstaller ^
     --name PrintSVC ^
     --onefile ^
-    --console ^
+    --noconsole ^
     --clean ^
     --noconfirm ^
     --add-data "printsvc.json;." ^
@@ -161,8 +161,8 @@ echo Distribution folder: %CD%\dist\PrintSVC\
 echo.
 echo To deploy to Win7 32-bit:
 echo   1. Copy the entire dist\PrintSVC folder to the target machine
-echo   2. Double-click start_printsvc.bat to run
-echo   3. Open browser to http://localhost:631/ for status
+echo   2. Double-click start_printsvc.bat to run as a tray app
+echo   3. Open browser to http://localhost:631/ for status, or use the tray menu to open it
 echo.
 
 pause

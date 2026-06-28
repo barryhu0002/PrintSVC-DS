@@ -84,6 +84,52 @@ printer_name = None
 advertised_printer_name = "PrintSVC"
 printer_config = {}
 server_port = 631
+IPP_HEX_PREVIEW_BYTES = 256
+
+
+def _format_hex_preview(data, max_bytes=IPP_HEX_PREVIEW_BYTES):
+    preview = data[:max_bytes]
+    if len(data) <= max_bytes:
+        return preview.hex()
+    return "%s...<%d bytes omitted>" % (preview.hex(), len(data) - max_bytes)
+
+
+def _iter_request_attrs(req):
+    for attr_list in (req.operation_attrs, req.job_attrs):
+        for attr in attr_list:
+            yield attr
+
+
+def _parse_print_options(req):
+    options = {
+        "copies": 1,
+        "sides": "one-sided",
+        "orientation": 1,
+        "margins": {
+            "left": 0,
+            "right": 0,
+            "top": 0,
+            "bottom": 0,
+        },
+    }
+    margin_names = {
+        "media-left-margin": "left",
+        "media-right-margin": "right",
+        "media-top-margin": "top",
+        "media-bottom-margin": "bottom",
+    }
+
+    for attr in _iter_request_attrs(req):
+        if attr.name == "copies":
+            options["copies"] = int(attr.value)
+        elif attr.name == "sides":
+            options["sides"] = attr.value
+        elif attr.name == "orientation-requested":
+            options["orientation"] = int(attr.value)
+        elif attr.name in margin_names:
+            options["margins"][margin_names[attr.name]] = int(attr.value)
+
+    return options
 
 
 class IPPHandler(BaseHTTPRequestHandler):
@@ -171,7 +217,7 @@ class IPPHandler(BaseHTTPRequestHandler):
                         req.request_id, self.client_address[0])
 
             # Dump raw request bytes for debugging
-            logger.info("IPP request hex[%d]: %s", len(body), body.hex())
+            logger.debug("IPP request hex[%d]: %s", len(body), _format_hex_preview(body))
 
             # Dispatch based on operation
             if req.operation_id == ipp_proto.OP_GET_PRINTER_ATTRS:
@@ -191,7 +237,7 @@ class IPPHandler(BaseHTTPRequestHandler):
                 response = self._ipp_error(req, ipp_proto.SERVER_ERROR_OPERATION_NOT_SUPPORTED)
 
             # Dump raw response bytes for debugging
-            logger.info("IPP response hex[%d]: %s", len(response), response.hex())
+            logger.debug("IPP response hex[%d]: %s", len(response), _format_hex_preview(response))
 
             # Send IPP response over HTTP
             self.send_response(200)
@@ -297,21 +343,23 @@ class IPPHandler(BaseHTTPRequestHandler):
         job_name = req.job_name or "PrintSVC Job"
         username = req.username or "unknown"
 
-        # Get job attributes from operation attrs or job attrs
-        copies = 1
-        sides = "one-sided"
-        orientation = 1
-        for attr_list in (req.operation_attrs, req.job_attrs):
-            for a in attr_list:
-                if a.name == "copies":
-                    copies = int(a.value)
-                elif a.name == "sides":
-                    sides = a.value
-                elif a.name == "orientation-requested":
-                    orientation = int(a.value)
+        print_options = _parse_print_options(req)
+        copies = print_options["copies"]
+        sides = print_options["sides"]
+        orientation = print_options["orientation"]
+        margins = print_options["margins"]
 
-        logger.info("Print-Job: fmt=%s, copies=%d, sides=%s, orientation=%d, job=%s, user=%s, size=%d bytes",
-                    doc_format, copies, sides, orientation, job_name, username, len(req.document))
+        logger.info(
+            "Print-Job: fmt=%s, copies=%d, sides=%s, orientation=%d, margins=%s, job=%s, user=%s, size=%d bytes",
+            doc_format,
+            copies,
+            sides,
+            orientation,
+            margins,
+            job_name,
+            username,
+            len(req.document),
+        )
 
         local_ip = get_local_ip()
         printer_uri = f"ipp://{local_ip}:{server_port}/ipp/print"
@@ -332,7 +380,7 @@ class IPPHandler(BaseHTTPRequestHandler):
         def _do_print():
             try:
                 job_store.update_job(jid, state="processing")
-                _print_document(pname, req.document, doc_format, copies, sides, orientation)
+                _print_document(pname, req.document, doc_format, copies, sides, orientation, margins=margins)
                 job_store.update_job(jid, state="completed", completed_at=time.time(),
                                      message="Printed successfully")
                 logger.info("Job #%d completed: %s", jid, job_name)
@@ -686,25 +734,25 @@ class IPPHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def _print_document(pname, doc_data, doc_format, copies=1, sides="one-sided", orientation=1):
+def _print_document(pname, doc_data, doc_format, copies=1, sides="one-sided", orientation=1, margins=None):
     """Dispatch a print job to the appropriate printer backend."""
     logger.info("Printing %d bytes to %s (format=%s, copies=%d, sides=%s, orientation=%d)",
                 len(doc_data), pname, doc_format, copies, sides, orientation)
 
     if doc_format == "application/pdf":
-        winprint.print_pdf(pname, doc_data, copies=copies, sides=sides, orientation=orientation)
+        winprint.print_pdf(pname, doc_data, copies=copies, sides=sides, orientation=orientation, margins=margins)
     elif doc_format in ("image/png", "image/jpeg", "image/tiff", "image/bmp"):
-        winprint.print_image(pname, doc_data, copies=copies, sides=sides, orientation=orientation)
+        winprint.print_image(pname, doc_data, copies=copies, sides=sides, orientation=orientation, margins=margins)
     elif doc_format == "application/octet-stream" or doc_format == "application/vnd.cups-raw":
         winprint.print_raw(pname, doc_data)
     elif docrender.is_office_format(doc_format):
         logger.info("Converting Office document (%s) to PDF for printing", doc_format)
         pdf_data = docrender.office_to_pdf(doc_data, doc_format)
-        winprint.print_pdf(pname, pdf_data, copies=copies, sides=sides, orientation=orientation)
+        winprint.print_pdf(pname, pdf_data, copies=copies, sides=sides, orientation=orientation, margins=margins)
     else:
         # Try as image if it looks like one
         try:
-            winprint.print_image(pname, doc_data, copies=copies, sides=sides)
+            winprint.print_image(pname, doc_data, copies=copies, sides=sides, margins=margins)
         except Exception:
             # Fallback: try raw
             logger.warning("Format %s not recognized, trying raw print", doc_format)

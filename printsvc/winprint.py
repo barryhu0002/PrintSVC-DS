@@ -22,6 +22,73 @@ PRINTER_STATE_PRINTING = 4
 PRINTER_STATE_STOPPED = 5
 PRINTER_STATE_UNKNOWN = 0
 
+PHYSICALWIDTH = 110
+PHYSICALHEIGHT = 111
+PHYSICALOFFSETX = 112
+PHYSICALOFFSETY = 113
+LOGPIXELSX = 88
+LOGPIXELSY = 90
+
+
+def _margin_to_pixels(value, dpi):
+    return int(round((value / 100.0) / 25.4 * dpi))
+
+
+def _get_margin_pixels(hdc, margins=None):
+    margins = margins or {}
+    dpi_x = hdc.GetDeviceCaps(LOGPIXELSX)
+    dpi_y = hdc.GetDeviceCaps(LOGPIXELSY)
+    return {
+        "left": _margin_to_pixels(int(margins.get("left", 0)), dpi_x),
+        "right": _margin_to_pixels(int(margins.get("right", 0)), dpi_x),
+        "top": _margin_to_pixels(int(margins.get("top", 0)), dpi_y),
+        "bottom": _margin_to_pixels(int(margins.get("bottom", 0)), dpi_y),
+    }
+
+
+def _get_page_geometry(hdc, orientation=1):
+    page_width = hdc.GetDeviceCaps(PHYSICALWIDTH)
+    page_height = hdc.GetDeviceCaps(PHYSICALHEIGHT)
+    offset_x = hdc.GetDeviceCaps(PHYSICALOFFSETX)
+    offset_y = hdc.GetDeviceCaps(PHYSICALOFFSETY)
+    if orientation in (2, 4):
+        page_width, page_height = page_height, page_width
+        offset_x, offset_y = offset_y, offset_x
+    return page_width, page_height, offset_x, offset_y
+
+
+def _get_draw_rect(content_width, content_height, page_width, page_height, offset_x, offset_y, margins=None):
+    margins = margins or {}
+    left_margin = max(0, int(margins.get("left", 0)))
+    right_margin = max(0, int(margins.get("right", 0)))
+    top_margin = max(0, int(margins.get("top", 0)))
+    bottom_margin = max(0, int(margins.get("bottom", 0)))
+
+    available_width = max(1, page_width - left_margin - right_margin)
+    available_height = max(1, page_height - top_margin - bottom_margin)
+    scale = min(available_width / content_width, available_height / content_height)
+    draw_w = int(content_width * scale)
+    draw_h = int(content_height * scale)
+    draw_x = left_margin + (available_width - draw_w) // 2 - offset_x
+    draw_y = top_margin + (available_height - draw_h) // 2 - offset_y
+    return draw_x, draw_y, draw_x + draw_w, draw_y + draw_h
+
+
+def _log_draw_geometry(doc_kind, content_width, content_height, page_width, page_height, offset_x, offset_y, draw_rect, orientation, margins=None):
+    logger.debug(
+        "%s geometry: content=%dx%d page=%dx%d physical_offset=(%d,%d) orientation=%d margins=%s draw_rect=%s",
+        doc_kind,
+        content_width,
+        content_height,
+        page_width,
+        page_height,
+        offset_x,
+        offset_y,
+        orientation,
+        margins or {},
+        draw_rect,
+    )
+
 
 def list_printers():
     """List available Windows printers with their status."""
@@ -102,7 +169,7 @@ def get_printer_status(printer_name):
         return -1
 
 
-def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies=1, sides="one-sided"):
+def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies=1, sides="one-sided", margins=None):
     """
     Print an image (PNG, JPEG, etc.) via Windows GDI.
     """
@@ -111,15 +178,6 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
 
     image = Image.open(io.BytesIO(image_bytes))
     img_width, img_height = image.size
-
-    if page_size is None:
-        page_width_px = int(8.27 * 300)
-        page_height_px = int(11.69 * 300)
-    else:
-        page_width_px, page_height_px = page_size
-
-    if orientation == 2 or orientation == 4:
-        page_width_px, page_height_px = page_height_px, page_width_px
 
     hprinter = win32print.OpenPrinter(printer_name)
     try:
@@ -149,15 +207,14 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
                 image = image.convert("RGB")
             dib = ImageWin.Dib(image)
 
-            scale = min(page_width_px / img_width, page_height_px / img_height)
-            draw_w = int(img_width * scale)
-            draw_h = int(img_height * scale)
-            offset_x = (page_width_px - draw_w) // 2
-            offset_y = (page_height_px - draw_h) // 2
+            page_width_px, page_height_px, offset_x_px, offset_y_px = _get_page_geometry(hdc, orientation)
+            margin_pixels = _get_margin_pixels(hdc, margins)
+            draw_rect = _get_draw_rect(img_width, img_height, page_width_px, page_height_px, offset_x_px, offset_y_px, margins=margin_pixels)
+            _log_draw_geometry("Image", img_width, img_height, page_width_px, page_height_px, offset_x_px, offset_y_px, draw_rect, orientation, margin_pixels)
 
             for _ in range(copies):
                 hdc.StartPage()
-                dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
+                dib.draw(hdc.GetHandleOutput(), draw_rect)
                 hdc.EndPage()
 
             hdc.EndDoc()
@@ -168,7 +225,7 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
         win32print.ClosePrinter(hprinter)
 
 
-def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=1):
+def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=1, margins=None):
     """
     Print a PDF by rendering each page to an image and sending to GDI.
     Uses PyMuPDF (fitz) for PDF rendering.
@@ -211,21 +268,15 @@ def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=
                     pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-                    page_width = hdc.GetDeviceCaps(110)
-                    page_height = hdc.GetDeviceCaps(111)
-                    if orientation in (2, 4):
-                        page_width, page_height = page_height, page_width
-
+                    page_width, page_height, offset_x, offset_y = _get_page_geometry(hdc, orientation)
+                    margin_pixels = _get_margin_pixels(hdc, margins)
                     img_width, img_height = img.size
-                    scale = min(page_width / img_width, page_height / img_height)
-                    draw_w = int(img_width * scale)
-                    draw_h = int(img_height * scale)
-                    offset_x = (page_width - draw_w) // 2
-                    offset_y = (page_height - draw_h) // 2
+                    draw_rect = _get_draw_rect(img_width, img_height, page_width, page_height, offset_x, offset_y, margins=margin_pixels)
+                    _log_draw_geometry("PDF", img_width, img_height, page_width, page_height, offset_x, offset_y, draw_rect, orientation, margin_pixels)
 
                     dib = ImageWin.Dib(img)
                     hdc.StartPage()
-                    dib.draw(hdc.GetHandleOutput(), (offset_x, offset_y, offset_x + draw_w, offset_y + draw_h))
+                    dib.draw(hdc.GetHandleOutput(), draw_rect)
                     hdc.EndPage()
 
             hdc.EndDoc()

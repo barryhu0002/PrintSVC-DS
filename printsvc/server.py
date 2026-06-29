@@ -104,7 +104,7 @@ def _parse_print_options(req):
     options = {
         "copies": 1,
         "sides": "one-sided",
-        "orientation": 1,
+        "orientation": 3,
         "margins": {
             "left": 0,
             "right": 0,
@@ -734,7 +734,7 @@ class IPPHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
 
-def _print_document(pname, doc_data, doc_format, copies=1, sides="one-sided", orientation=1, margins=None):
+def _print_document(pname, doc_data, doc_format, copies=1, sides="one-sided", orientation=3, margins=None):
     """Dispatch a print job to the appropriate printer backend."""
     logger.info("Printing %d bytes to %s (format=%s, copies=%d, sides=%s, orientation=%d)",
                 len(doc_data), pname, doc_format, copies, sides, orientation)

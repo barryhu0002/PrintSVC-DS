@@ -28,10 +28,45 @@ PHYSICALOFFSETX = 112
 PHYSICALOFFSETY = 113
 LOGPIXELSX = 88
 LOGPIXELSY = 90
-
+DM_ORIENTATION = 0x00000001
+DM_COPIES = 0x00000100
+DM_DUPLEX = 0x00001000
+DMORIENT_PORTRAIT = 1
+DMORIENT_LANDSCAPE = 2
+DMDUP_SIMPLEX = 1
+DMDUP_VERTICAL = 2
+DMDUP_HORIZONTAL = 3
+IPP_ORIENT_PORTRAIT = 3
+IPP_ORIENT_LANDSCAPE = 4
+IPP_ORIENT_REVERSE_LANDSCAPE = 5
+IPP_ORIENT_REVERSE_PORTRAIT = 6
 
 def _margin_to_pixels(value, dpi):
     return int(round((value / 100.0) / 25.4 * dpi))
+
+
+def _is_landscape_request(orientation):
+    return orientation in (IPP_ORIENT_LANDSCAPE, IPP_ORIENT_REVERSE_LANDSCAPE)
+
+
+def _rotate_for_orientation(image, orientation):
+    if orientation == IPP_ORIENT_LANDSCAPE:
+        return image.rotate(90, expand=True)
+    if orientation == IPP_ORIENT_REVERSE_LANDSCAPE:
+        return image.rotate(270, expand=True)
+    if orientation == IPP_ORIENT_REVERSE_PORTRAIT:
+        return image.rotate(180, expand=True)
+    return image
+
+
+def _orient_image_for_page(image, orientation, page_width=None, page_height=None):
+    if orientation == IPP_ORIENT_LANDSCAPE:
+        return image.rotate(90, expand=True), True
+    if orientation == IPP_ORIENT_REVERSE_LANDSCAPE:
+        return image.rotate(270, expand=True), True
+    if orientation == IPP_ORIENT_REVERSE_PORTRAIT:
+        return image.rotate(180, expand=True), True
+    return image, False
 
 
 def _get_margin_pixels(hdc, margins=None):
@@ -46,15 +81,33 @@ def _get_margin_pixels(hdc, margins=None):
     }
 
 
-def _get_page_geometry(hdc, orientation=1):
+def _get_page_geometry(hdc):
     page_width = hdc.GetDeviceCaps(PHYSICALWIDTH)
     page_height = hdc.GetDeviceCaps(PHYSICALHEIGHT)
     offset_x = hdc.GetDeviceCaps(PHYSICALOFFSETX)
     offset_y = hdc.GetDeviceCaps(PHYSICALOFFSETY)
-    if orientation in (2, 4):
-        page_width, page_height = page_height, page_width
-        offset_x, offset_y = offset_y, offset_x
     return page_width, page_height, offset_x, offset_y
+
+
+def _apply_print_options(devmode, orientation=IPP_ORIENT_PORTRAIT, copies=1, sides="one-sided"):
+    if devmode is None:
+        return None
+
+    devmode.Fields |= DM_ORIENTATION | DM_COPIES
+    devmode.Orientation = DMORIENT_LANDSCAPE if _is_landscape_request(orientation) else DMORIENT_PORTRAIT
+    devmode.Copies = copies
+
+    if sides == "two-sided-long-edge":
+        devmode.Fields |= DM_DUPLEX
+        devmode.Duplex = DMDUP_VERTICAL
+    elif sides == "two-sided-short-edge":
+        devmode.Fields |= DM_DUPLEX
+        devmode.Duplex = DMDUP_HORIZONTAL
+    else:
+        devmode.Fields |= DM_DUPLEX
+        devmode.Duplex = DMDUP_SIMPLEX
+
+    return devmode
 
 
 def _get_draw_rect(content_width, content_height, page_width, page_height, offset_x, offset_y, margins=None):
@@ -169,7 +222,7 @@ def get_printer_status(printer_name):
         return -1
 
 
-def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies=1, sides="one-sided", margins=None):
+def print_image(printer_name, image_bytes, page_size=None, orientation=IPP_ORIENT_PORTRAIT, copies=1, sides="one-sided", margins=None):
     """
     Print an image (PNG, JPEG, etc.) via Windows GDI.
     """
@@ -186,13 +239,7 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
         if devmode is None:
             devmode = win32print.GetPrinter(hprinter, 2)["pDevMode"]
 
-        devmode.Copies = copies
-        if sides == "two-sided-long-edge":
-            devmode.Flags |= 0x00010000
-            devmode.Duplex = 3
-        elif sides == "two-sided-short-edge":
-            devmode.Flags |= 0x00010000
-            devmode.Duplex = 2
+        devmode = _apply_print_options(devmode, orientation=orientation, copies=copies, sides=sides)
 
         hdc = win32ui.CreateDC()
         try:
@@ -205,9 +252,13 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
 
             if image.mode != "RGB":
                 image = image.convert("RGB")
+            image, rotated = _orient_image_for_page(image, orientation)
+            if rotated:
+                logger.info("Applied orientation rotation for image: orientation=%d, size=%dx%d", orientation, image.width, image.height)
+            img_width, img_height = image.size
             dib = ImageWin.Dib(image)
 
-            page_width_px, page_height_px, offset_x_px, offset_y_px = _get_page_geometry(hdc, orientation)
+            page_width_px, page_height_px, offset_x_px, offset_y_px = _get_page_geometry(hdc)
             margin_pixels = _get_margin_pixels(hdc, margins)
             draw_rect = _get_draw_rect(img_width, img_height, page_width_px, page_height_px, offset_x_px, offset_y_px, margins=margin_pixels)
             _log_draw_geometry("Image", img_width, img_height, page_width_px, page_height_px, offset_x_px, offset_y_px, draw_rect, orientation, margin_pixels)
@@ -225,7 +276,7 @@ def print_image(printer_name, image_bytes, page_size=None, orientation=1, copies
         win32print.ClosePrinter(hprinter)
 
 
-def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=1, margins=None):
+def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=IPP_ORIENT_PORTRAIT, margins=None):
     """
     Print a PDF by rendering each page to an image and sending to GDI.
     Uses PyMuPDF (fitz) for PDF rendering.
@@ -246,11 +297,7 @@ def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=
         devmode = printer_info.get("pDevMode")
         if devmode is None:
             devmode = win32print.GetPrinter(hprinter, 2)["pDevMode"]
-        if copies > 1:
-            devmode.Copies = copies
-        if sides.startswith("two-sided"):
-            devmode.Flags |= 0x00010000
-            devmode.Duplex = 3 if "long" in sides else 2
+        devmode = _apply_print_options(devmode, orientation=orientation, copies=copies, sides=sides)
 
         hdc = win32ui.CreateDC()
         try:
@@ -267,8 +314,11 @@ def print_pdf(printer_name, pdf_bytes, copies=1, sides="one-sided", orientation=
                     zoom = 300 / 72
                     pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom))
                     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                    img, rotated = _orient_image_for_page(img, orientation)
+                    if rotated:
+                        logger.info("Applied orientation rotation for PDF page %d: orientation=%d, size=%dx%d", page_num + 1, orientation, img.width, img.height)
 
-                    page_width, page_height, offset_x, offset_y = _get_page_geometry(hdc, orientation)
+                    page_width, page_height, offset_x, offset_y = _get_page_geometry(hdc)
                     margin_pixels = _get_margin_pixels(hdc, margins)
                     img_width, img_height = img.size
                     draw_rect = _get_draw_rect(img_width, img_height, page_width, page_height, offset_x, offset_y, margins=margin_pixels)

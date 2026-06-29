@@ -384,7 +384,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
                 "jis_b5_182x257mm", "jis_b4_257x364mm",
             ],
             "finishings": [3],  # 3 = none
-            "orientation-requested": [1, 2, 3, 4],  # portrait, landscape, rev-portrait, rev-landscape
+            "orientation-requested": [3, 4, 5, 6],  # portrait, landscape, reverse-landscape, reverse-portrait
             "print-quality": [3, 4, 5],  # draft, normal, high
             "resolution": [(600, 600, 3), (300, 300, 3)],
         }
@@ -518,7 +518,7 @@ def make_printer_attributes(printer_name, printer_state=3, state_reason="none",
         attrs.append(("media-supported", TAG_KEYWORD, media))
     for fin in supported.get("finishings", [3]):
         attrs.append(("finishings-supported", TAG_ENUM, fin))
-    for orient in supported.get("orientation-requested", [1]):
+    for orient in supported.get("orientation-requested", [3]):
         attrs.append(("orientation-requested-supported", TAG_ENUM, orient))
     for qual in supported.get("print-quality", [4]):
         attrs.append(("print-quality-supported", TAG_ENUM, qual))

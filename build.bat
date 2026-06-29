@@ -80,34 +80,7 @@ if exist "build\PrintSVC" rmdir /s /q "build\PrintSVC"
 if exist "dist\PrintSVC.exe" del /q "dist\PrintSVC.exe"
 
 echo [Step 3/5] Building executable (this may take several minutes)...
-"%PYTHON_CMD%" -m PyInstaller ^
-    --name PrintSVC ^
-    --onefile ^
-    --noconsole ^
-    --clean ^
-    --noconfirm ^
-    --add-data "printsvc.json;." ^
-    --add-binary "%PYWIN32_SYSTEM32%\pythoncom38.dll;." ^
-    --add-binary "%PYWIN32_SYSTEM32%\pywintypes38.dll;." ^
-    --hidden-import printsvc ^
-    --hidden-import printsvc.ipp ^
-    --hidden-import printsvc.server ^
-    --hidden-import printsvc.winprint ^
-    --hidden-import printsvc.discovery ^
-    --hidden-import printsvc.config ^
-    --hidden-import printsvc.logger ^
-    --hidden-import printsvc.main ^
-    --hidden-import printsvc.docrender ^
-    --hidden-import win32print ^
-    --hidden-import win32ui ^
-    --hidden-import PIL ^
-    --hidden-import PIL.Image ^
-    --hidden-import PIL.ImageWin ^
-    --hidden-import zeroconf ^
-    --hidden-import fitz ^
-    --collect-all win32print ^
-    --collect-all zeroconf ^
-    run.py
+"%PYTHON_CMD%" -m PyInstaller --clean --noconfirm printsvc.spec
 
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] PyInstaller build failed

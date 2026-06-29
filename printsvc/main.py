@@ -7,6 +7,7 @@ import logging
 import os
 import signal
 import sys
+import tempfile
 import threading
 import time
 import webbrowser
@@ -14,6 +15,7 @@ import webbrowser
 import win32api
 import win32con
 import win32gui
+from PIL import Image
 
 from . import winprint
 from .config import load_config
@@ -29,6 +31,55 @@ mdns = None
 ssdp = None
 app_state = None
 tray_controller = None
+ICON_SOURCE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "icon.jpg")
+ICON_CACHE = None
+
+
+def _resource_path(*parts):
+    base_dir = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(base_dir, *parts)
+
+
+def _build_icon_ico():
+    global ICON_CACHE
+
+    if ICON_CACHE and os.path.exists(ICON_CACHE):
+        return ICON_CACHE
+
+    source = _resource_path("docs", "icon.jpg")
+    if not os.path.exists(source):
+        source = ICON_SOURCE
+    if not os.path.exists(source):
+        return None
+
+    icon_path = os.path.join(tempfile.gettempdir(), "PrintSVC-icon.ico")
+    try:
+        source_mtime = os.path.getmtime(source)
+        if not os.path.exists(icon_path) or os.path.getmtime(icon_path) < source_mtime:
+            with Image.open(source) as image:
+                image = image.convert("RGBA")
+                image.save(icon_path, format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])
+        ICON_CACHE = icon_path
+        return icon_path
+    except Exception:
+        return None
+
+
+def _load_app_icon():
+    icon_path = _build_icon_ico()
+    if icon_path:
+        try:
+            return win32gui.LoadImage(
+                0,
+                icon_path,
+                win32con.IMAGE_ICON,
+                0,
+                0,
+                win32con.LR_LOADFROMFILE | win32con.LR_DEFAULTSIZE,
+            )
+        except win32gui.error:
+            pass
+    return win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
 
 
 class TrayApp:
@@ -123,7 +174,7 @@ class TrayController:
     def __init__(self, app):
         self.app = app
         self.hwnd = None
-        self.hicon = win32gui.LoadIcon(0, win32con.IDI_APPLICATION)
+        self.hicon = _load_app_icon()
         self._ready = threading.Event()
         self._thread = None
         self._error = None

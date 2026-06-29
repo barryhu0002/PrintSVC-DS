@@ -1,7 +1,26 @@
 # -*- mode: python ; coding: utf-8 -*-
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+
+from PIL import Image
 from PyInstaller.utils.hooks import collect_all
 
-datas = [('printsvc.json', '.')]
+
+def build_icon(source):
+    source_path = Path(source)
+    if not source_path.exists():
+        return None
+    with Image.open(source_path) as image:
+        image = image.convert("RGBA")
+        tmp = NamedTemporaryFile(suffix=".ico", delete=False)
+        tmp.close()
+        image.save(tmp.name, format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])
+        return tmp.name
+
+
+icon_path = build_icon("docs/icon.jpg")
+
+datas = [('printsvc.json', '.'), ('docs/icon.jpg', 'docs')]
 binaries = [('C:\\Users\\cheng\\AppData\\Local\\Programs\\Python\\Python38-32\\Lib\\site-packages\\pywin32_system32\\pythoncom38.dll', '.'), ('C:\\Users\\cheng\\AppData\\Local\\Programs\\Python\\Python38-32\\Lib\\site-packages\\pywin32_system32\\pywintypes38.dll', '.')]
 hiddenimports = ['printsvc', 'printsvc.ipp', 'printsvc.server', 'printsvc.winprint', 'printsvc.discovery', 'printsvc.config', 'printsvc.logger', 'printsvc.main', 'printsvc.docrender', 'win32print', 'win32ui', 'win32api', 'win32con', 'win32gui', 'PIL', 'PIL.Image', 'PIL.ImageWin', 'zeroconf', 'fitz']
 tmp_ret = collect_all('win32print')
@@ -38,7 +57,7 @@ exe = EXE(
     upx_exclude=[],
     runtime_tmpdir=None,
     console=False,
-    icon=None,
+    icon=icon_path,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

@@ -58,7 +58,8 @@ def _build_icon_ico():
         if not os.path.exists(icon_path) or os.path.getmtime(icon_path) < source_mtime:
             with Image.open(source) as image:
                 image = image.convert("RGBA")
-                image.save(icon_path, format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (256, 256)])
+                image = image.resize((256, 256), Image.LANCZOS)
+                image.save(icon_path, format="ICO", sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
         ICON_CACHE = icon_path
         return icon_path
     except Exception:
